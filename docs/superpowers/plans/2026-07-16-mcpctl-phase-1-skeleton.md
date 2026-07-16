@@ -552,22 +552,37 @@ Create `internal/cli/root_test.go`:
 package cli
 
 import (
-	"bytes"
+	"io"
+	"os"
 	"testing"
 
 	"mcpctl/internal/apperror"
 )
 
-func TestVersionFlagPrintsShort(t *testing.T) {
-	root, _ := NewRootCmd()
-	var out bytes.Buffer
-	root.SetOut(&out)
-	root.SetArgs([]string{"--version"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// TestVersionFlagWritesShortToStdout captures the real os.Stdout (no SetOut)
+// so it verifies the version line lands on stdout, not stderr. A SetOut/SetErr
+// two-buffer test cannot catch this: Cobra's OutOrStderr() resolves to the
+// SetOut writer, so the buggy cmd.Println path would still hit the same buffer.
+func TestVersionFlagWritesShortToStdout(t *testing.T) {
+	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := out.String(); got != "mcpctl dev\n" {
-		t.Fatalf("--version = %q, want %q", got, "mcpctl dev\n")
+	os.Stdout = w
+
+	root, _ := NewRootCmd()
+	root.SetArgs([]string{"--version"})
+	runErr := root.Execute()
+	_ = w.Close()
+
+	out, _ := io.ReadAll(r)
+	if runErr != nil {
+		t.Fatalf("unexpected error: %v", runErr)
+	}
+	if got := string(out); got != "mcpctl dev\n" {
+		t.Fatalf("--version stdout = %q, want %q", got, "mcpctl dev\n")
 	}
 }
 
@@ -612,6 +627,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -658,7 +674,9 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
-				cmd.Println(buildinfo.Short())
+				// Version output is a command result → stdout. cmd.Println
+				// routes to stderr, so write to OutOrStdout explicitly.
+				fmt.Fprintln(cmd.OutOrStdout(), buildinfo.Short())
 				return nil
 			}
 			return cmd.Help()
@@ -708,7 +726,7 @@ func Execute() error {
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `go test ./internal/cli/ -v`
-Expected: PASS (`TestVersionFlagPrintsShort`, `TestUnknownCommandIsUsageError`, `TestInvalidLogLevelIsUsageError`). The package compiles on its own; the `version` subcommand is added in Task 5.
+Expected: PASS (`TestVersionFlagWritesShortToStdout`, `TestUnknownCommandIsUsageError`, `TestInvalidLogLevelIsUsageError`). The package compiles on its own; the `version` subcommand is added in Task 5.
 
 - [ ] **Step 6: Write the entrypoint**
 
@@ -759,20 +777,32 @@ Create `internal/cli/version_test.go`:
 package cli
 
 import (
-	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
 
-func TestVersionSubcommand(t *testing.T) {
-	root, _ := NewRootCmd()
-	var out bytes.Buffer
-	root.SetOut(&out)
-	root.SetArgs([]string{"version"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// Captures real os.Stdout so it verifies the block lands on stdout, not stderr.
+func TestVersionSubcommandWritesToStdout(t *testing.T) {
+	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
 	}
-	got := out.String()
+	os.Stdout = w
+
+	root, _ := NewRootCmd()
+	root.SetArgs([]string{"version"})
+	runErr := root.Execute()
+	_ = w.Close()
+
+	out, _ := io.ReadAll(r)
+	if runErr != nil {
+		t.Fatalf("unexpected error: %v", runErr)
+	}
+	got := string(out)
 	for _, want := range []string{"mcpctl version ", "commit: ", "built: ", "go: "} {
 		if !strings.Contains(got, want) {
 			t.Errorf("version output missing %q\ngot:\n%s", want, got)
@@ -793,6 +823,8 @@ Create `internal/cli/version.go`:
 package cli
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"mcpctl/internal/buildinfo"
@@ -804,7 +836,8 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print detailed version information",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cmd.Println(buildinfo.Full())
+			// Result → stdout; cmd.Println routes to stderr.
+			fmt.Fprintln(cmd.OutOrStdout(), buildinfo.Full())
 			return nil
 		},
 	}
@@ -823,7 +856,7 @@ In `internal/cli/root.go`, inside `NewRootCmd`, add the version command immediat
 - [ ] **Step 5: Run the full cli package tests to verify they pass**
 
 Run: `go test ./internal/cli/ -v`
-Expected: PASS (`TestVersionFlagPrintsShort`, `TestUnknownCommandIsUsageError`, `TestInvalidLogLevelIsUsageError`, `TestVersionSubcommand`).
+Expected: PASS (`TestVersionFlagWritesShortToStdout`, `TestUnknownCommandIsUsageError`, `TestInvalidLogLevelIsUsageError`, `TestVersionSubcommandWritesToStdout`).
 
 - [ ] **Step 6: Build and smoke-test the binary**
 
