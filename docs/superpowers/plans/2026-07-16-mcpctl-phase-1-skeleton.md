@@ -1588,6 +1588,18 @@ Phase 1 is complete when:
 
 ---
 
+## Post-review hardening
+
+After the whole-branch review, these non-blocking improvements were applied on top of Tasks 1–9 (commits `2fdf038`, `0baf9b5`):
+
+- **config validation** (`internal/config/config.go`): reject *any* configuration with more than one Authorization mechanism (a static `Authorization` header + an `Authorization` `header_env`, even without a bearer token), not just the bearer-plus-header case. Implemented via `authMechanismCount`.
+- **config loading** (`internal/config/load.go`): `Load` now wraps `fs.ErrNotExist` on a missing file so `LoadResolved` detects the missing-default case with `errors.Is` instead of a second `os.Stat` (removes a TOCTOU window and the redundant syscall; `fileMissing` deleted).
+- **test hygiene**: `buildinfo` tests reset the shared package vars via `t.Cleanup` and assert the exact version block; the `os.Pipe` readers in the version tests are closed; added tests for the multi-auth rejection, the non-auth-header + bearer happy path, the `os.UserConfigDir()` fallback, `LoadResolved` on a missing explicit path, and `version = 2` rejection through `Load`.
+
+Deferred by the review (tracked): `defaults.timeout`/`connect_timeout` duration validation → Phase 2 (validate with bounds where consumed); pin `staticcheck`/`goreleaser` off `@latest` for reproducibility (the `@latest` `staticcheck` now requires Go 1.25 and forces a toolchain switch in CI); README/LICENSE for the goreleaser `files:` list → Phase 5.
+
+---
+
 ## Roadmap: subsequent plans
 
 Each later phase gets its own plan file, written when its predecessor lands. **The transport spike must precede Phase 2** — it is the first coding task of the Phase 2 plan and gates the two SDK facts flagged in spec §2.2 (§9 `http.Client` injection, §4.3.3 pagination shape).
