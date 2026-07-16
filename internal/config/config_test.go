@@ -17,6 +17,21 @@ func TestValidateAcceptsValidStdio(t *testing.T) {
 	}
 }
 
+func validHTTP() *Config {
+	return &Config{
+		Version: 1,
+		Servers: map[string]ServerConfig{
+			"remote": {Transport: "streamable-http", URL: "https://example.com/mcp"},
+		},
+	}
+}
+
+func TestValidateAcceptsValidHTTP(t *testing.T) {
+	if err := validHTTP().Validate(); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
 func TestValidateRejections(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -51,6 +66,19 @@ func TestValidateRejections(t *testing.T) {
 		{"bearer and auth header", func(c *Config) {
 			c.Servers["local"] = ServerConfig{Transport: "streamable-http", URL: "https://e.com",
 				HeaderEnv:   map[string]string{"Authorization": "MCP_AUTH"},
+				BearerToken: &TokenSource{Env: "MCP_BEARER"}}
+		}},
+		{"empty bearer token env", func(c *Config) {
+			c.Servers["local"] = ServerConfig{Transport: "streamable-http", URL: "https://e.com",
+				BearerToken: &TokenSource{Env: ""}}
+		}},
+		{"http with args only", func(c *Config) {
+			c.Servers["local"] = ServerConfig{Transport: "streamable-http", URL: "https://e.com",
+				Args: []string{"x"}}
+		}},
+		{"bearer and lowercase authorization header", func(c *Config) {
+			c.Servers["local"] = ServerConfig{Transport: "streamable-http", URL: "https://e.com",
+				Headers:     map[string]string{"authorization": "Bearer x"},
 				BearerToken: &TokenSource{Env: "MCP_BEARER"}}
 		}},
 	}
