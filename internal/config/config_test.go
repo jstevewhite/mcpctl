@@ -81,6 +81,11 @@ func TestValidateRejections(t *testing.T) {
 				Headers:     map[string]string{"authorization": "Bearer x"},
 				BearerToken: &TokenSource{Env: "MCP_BEARER"}}
 		}},
+		{"authorization via both headers and header_env", func(c *Config) {
+			c.Servers["local"] = ServerConfig{Transport: "streamable-http", URL: "https://e.com",
+				Headers:   map[string]string{"Authorization": "Bearer x"},
+				HeaderEnv: map[string]string{"Authorization": "MCP_AUTH"}}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -90,5 +95,22 @@ func TestValidateRejections(t *testing.T) {
 				t.Fatalf("expected validation error for %q", tc.name)
 			}
 		})
+	}
+}
+
+func TestValidateAcceptsHeaderPlusBearer(t *testing.T) {
+	c := &Config{
+		Version: 1,
+		Servers: map[string]ServerConfig{
+			"remote": {
+				Transport:   "streamable-http",
+				URL:         "https://example.com/mcp",
+				Headers:     map[string]string{"Accept-Language": "en-US"},
+				BearerToken: &TokenSource{Env: "MCP_BEARER"},
+			},
+		},
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected valid (non-auth header + bearer), got %v", err)
 	}
 }

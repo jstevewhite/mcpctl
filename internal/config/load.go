@@ -15,7 +15,7 @@ func Load(path string) (*Config, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, apperror.Config("config file not found: %s", path)
+			return nil, apperror.Wrap(apperror.KindConfig, fs.ErrNotExist, "config file not found: %s", path)
 		}
 		return nil, apperror.Wrap(apperror.KindConfig, err, "open config %s", path)
 	}
@@ -46,16 +46,10 @@ func LoadResolved(override string) (*Config, error) {
 	}
 	cfg, err := Load(path)
 	if err != nil {
-		var ae *apperror.Error
-		if isDefault && errors.As(err, &ae) && ae.Kind == apperror.KindConfig && fileMissing(path) {
+		if isDefault && errors.Is(err, fs.ErrNotExist) {
 			return &Config{Version: 1, Servers: map[string]ServerConfig{}}, nil
 		}
 		return nil, err
 	}
 	return cfg, nil
-}
-
-func fileMissing(path string) bool {
-	_, err := os.Stat(path)
-	return errors.Is(err, fs.ErrNotExist)
 }

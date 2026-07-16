@@ -85,13 +85,11 @@ func (s ServerConfig) validate(name string) error {
 			return apperror.Config("server %q: header_env[%q] names an empty environment variable", name, header)
 		}
 	}
-	if s.BearerToken != nil {
-		if strings.TrimSpace(s.BearerToken.Env) == "" {
-			return apperror.Config("server %q: bearer_token.env must name a non-empty environment variable", name)
-		}
-		if hasAuthorizationHeader(s) {
-			return apperror.Config("server %q: bearer_token conflicts with an Authorization header", name)
-		}
+	if s.BearerToken != nil && strings.TrimSpace(s.BearerToken.Env) == "" {
+		return apperror.Config("server %q: bearer_token.env must name a non-empty environment variable", name)
+	}
+	if authMechanismCount(s) > 1 {
+		return apperror.Config("server %q: multiple Authorization mechanisms configured; use exactly one of bearer_token, an Authorization header, or an Authorization header_env", name)
 	}
 	return nil
 }
@@ -107,16 +105,25 @@ func validateHTTPURL(name, raw string) error {
 	return nil
 }
 
-func hasAuthorizationHeader(s ServerConfig) bool {
-	for h := range s.Headers {
-		if strings.EqualFold(h, "Authorization") {
-			return true
-		}
-	}
-	for h := range s.HeaderEnv {
+func headerMapHasAuthorization(m map[string]string) bool {
+	for h := range m {
 		if strings.EqualFold(h, "Authorization") {
 			return true
 		}
 	}
 	return false
+}
+
+func authMechanismCount(s ServerConfig) int {
+	n := 0
+	if headerMapHasAuthorization(s.Headers) {
+		n++
+	}
+	if headerMapHasAuthorization(s.HeaderEnv) {
+		n++
+	}
+	if s.BearerToken != nil {
+		n++
+	}
+	return n
 }

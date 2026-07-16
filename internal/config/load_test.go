@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,5 +59,26 @@ func TestLoadResolvedMissingDefaultIsEmpty(t *testing.T) {
 	}
 	if cfg.Version != 1 || len(cfg.Servers) != 0 {
 		t.Fatalf("expected empty valid config, got %+v", cfg)
+	}
+}
+
+func TestLoadMissingWrapsNotExist(t *testing.T) {
+	_, err := Load(filepath.Join(t.TempDir(), "nope.toml"))
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Load missing-file error should wrap fs.ErrNotExist, got %v", err)
+	}
+}
+
+func TestLoadResolvedMissingExplicitErrors(t *testing.T) {
+	_, err := LoadResolved(filepath.Join(t.TempDir(), "nope.toml"))
+	if err == nil {
+		t.Fatal("expected error for a missing explicit config path")
+	}
+}
+
+func TestLoadRejectsInvalidVersion(t *testing.T) {
+	_, err := Load(writeTemp(t, "version = 2\n"))
+	if err == nil {
+		t.Fatal("expected validation error for version = 2")
 	}
 }

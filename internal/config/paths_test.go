@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,5 +35,17 @@ func TestResolveFallsBackToDefault(t *testing.T) {
 	}
 	if want := filepath.FromSlash("/xdg/mcpctl/config.toml"); got != want || !isDefault {
 		t.Fatalf("Resolve default = (%q, %v), want (%q, true)", got, isDefault, want)
+	}
+}
+
+func TestDefaultPathFallsBackToUserConfigDir(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
+	got, err := DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join("mcpctl", "config.toml")
+	if !strings.HasSuffix(got, want) {
+		t.Fatalf("DefaultPath() = %q, want suffix %q", got, want)
 	}
 }
