@@ -13,7 +13,7 @@
 These apply to every task. Values are copied verbatim from `mcpctl-spec.md`.
 
 - **Go version:** Go 1.24 or newer; Go modules.
-- **Module path:** `github.com/jstevewhite/mcpctl` (assumption — confirm against the intended remote in Task 1 and keep it consistent everywhere).
+- **Module path:** `mcpctl` — a bare local module path, since the project is private for now. Valid for local `go build`/`test` and GoReleaser. When a GitHub repo exists, migrate to `github.com/<owner>/mcpctl` via `go mod edit -module` plus a find/replace across imports.
 - **No CGo:** prefer pure-Go dependencies; do not introduce CGo without a documented reason.
 - **Output contract:** all diagnostics and logs go to **stderr**; command results go to **stdout**. Machine-readable stdout must never contain log prefixes, color, progress, or warnings.
 - **`os.Exit` only in `main.go`.** Command/library packages return errors.
@@ -76,10 +76,10 @@ Test files live beside their packages (`*_test.go`).
 
 Run:
 ```bash
-go mod init github.com/jstevewhite/mcpctl
+go mod init mcpctl
 go mod edit -go=1.24
 ```
-Expected: `go.mod` created with `module github.com/jstevewhite/mcpctl` and `go 1.24`.
+Expected: `go.mod` created with `module mcpctl` and `go 1.24`.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -479,7 +479,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"mcpctl/internal/apperror"
 )
 
 // ParseLevel converts a level name to an slog.Level.
@@ -555,7 +555,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"mcpctl/internal/apperror"
 )
 
 func TestVersionFlagPrintsShort(t *testing.T) {
@@ -618,9 +618,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/jstevewhite/mcpctl/internal/apperror"
-	"github.com/jstevewhite/mcpctl/internal/buildinfo"
-	"github.com/jstevewhite/mcpctl/internal/logging"
+	"mcpctl/internal/apperror"
+	"mcpctl/internal/buildinfo"
+	"mcpctl/internal/logging"
 )
 
 // GlobalFlags holds values bound to the root's persistent flags.
@@ -720,8 +720,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jstevewhite/mcpctl/internal/apperror"
-	"github.com/jstevewhite/mcpctl/internal/cli"
+	"mcpctl/internal/apperror"
+	"mcpctl/internal/cli"
 )
 
 func main() {
@@ -795,7 +795,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/jstevewhite/mcpctl/internal/buildinfo"
+	"mcpctl/internal/buildinfo"
 )
 
 func newVersionCmd() *cobra.Command {
@@ -948,7 +948,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"mcpctl/internal/apperror"
 )
 
 // Config is the top-level configuration document.
@@ -1299,7 +1299,7 @@ import (
 
 	toml "github.com/pelletier/go-toml/v2"
 
-	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"mcpctl/internal/apperror"
 )
 
 // Load reads and validates a config file. A missing file is a config error.
@@ -1469,9 +1469,9 @@ builds:
     goarch: [amd64, arm64]
     ldflags:
       - -s -w
-      - -X github.com/jstevewhite/mcpctl/internal/buildinfo.Version={{.Version}}
-      - -X github.com/jstevewhite/mcpctl/internal/buildinfo.Commit={{.Commit}}
-      - -X github.com/jstevewhite/mcpctl/internal/buildinfo.Date={{.Date}}
+      - -X mcpctl/internal/buildinfo.Version={{.Version}}
+      - -X mcpctl/internal/buildinfo.Commit={{.Commit}}
+      - -X mcpctl/internal/buildinfo.Date={{.Date}}
 
 archives:
   - formats: [tar.gz]
@@ -1491,7 +1491,7 @@ checksum:
 Run:
 ```bash
 go run github.com/goreleaser/goreleaser/v2@latest check
-go build -ldflags "-X github.com/jstevewhite/mcpctl/internal/buildinfo.Version=9.9.9" -o /tmp/mcpctl ./cmd/mcpctl
+go build -ldflags "-X mcpctl/internal/buildinfo.Version=9.9.9" -o /tmp/mcpctl ./cmd/mcpctl
 /tmp/mcpctl --version
 ```
 Expected: `goreleaser check` reports the config is valid; the binary prints `mcpctl 9.9.9` (confirming linker injection works).
