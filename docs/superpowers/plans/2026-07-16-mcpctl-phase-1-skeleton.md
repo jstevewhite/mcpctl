@@ -1434,6 +1434,7 @@ git commit -m "feat: add TOML config loading with unknown-field rejection"
 - Create: `.github/workflows/ci.yml`
 - Create: `.goreleaser.yaml`
 - Create: `Makefile`
+- Create: `.gitignore`
 
 **Interfaces:**
 - Consumes: everything above (the whole module must build and test).
@@ -1557,11 +1558,19 @@ go build -ldflags "-X mcpctl/internal/buildinfo.Version=9.9.9" -o /tmp/mcpctl ./
 ```
 Expected: `goreleaser check` reports the config is valid; the binary prints `mcpctl 9.9.9` (confirming linker injection works).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Create .gitignore and commit**
 
+Create `.gitignore` (goreleaser writes to `dist/`; a local `go build ./cmd/mcpctl` can drop a `mcpctl` binary in the repo root):
+```gitignore
+# Build artifacts
+/dist/
+/mcpctl
+```
+
+Then commit:
 ```bash
-git add Makefile .github/workflows/ci.yml .goreleaser.yaml
-git commit -m "ci: add build/test/lint gates, cross-build matrix, and goreleaser config"
+git add Makefile .github/workflows/ci.yml .goreleaser.yaml .gitignore
+git commit -m "ci: add build/test/lint gates, cross-build matrix, goreleaser, and .gitignore"
 ```
 
 ---
