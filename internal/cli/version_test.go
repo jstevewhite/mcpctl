@@ -15,6 +15,7 @@ func TestVersionSubcommandWritesToStdout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer r.Close()
 	os.Stdout = w
 
 	root, _ := NewRootCmd()
