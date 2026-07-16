@@ -1,4 +1,3 @@
-````markdown
 # Specification: `mcpctl` — Go-Based Command-Line MCP Client
 
 ## 1. Objective
@@ -38,14 +37,14 @@ The result should be a native executable with no runtime dependency.
 
 ### 2.2 MCP implementation
 
-Use the current stable official Go MCP SDK:
+Use the official Go MCP SDK:
 
 - Repository/package family: `github.com/modelcontextprotocol/go-sdk`
-- Pin the dependency to a specific released version in `go.mod`
+- As of this revision the SDK is stable at `v1.5.0` (released 2026-04-07) and is spec-complete for MCP protocol `2025-11-25`. Pin to a `v1.5.x` release in `go.mod` and treat the SDK as production-ready rather than provisional.
 - Do not depend directly on internal SDK packages
 - Do not manually implement MCP framing, initialization, capability negotiation, or Streamable HTTP session management unless an SDK defect makes it unavoidable
 
-Before implementation, inspect the current SDK API and adapt package names and constructor calls accordingly. The SDK API is authoritative where this specification uses conceptual names.
+Before implementation, confirm the current SDK API and adapt package names and constructor calls accordingly. The SDK API is authoritative where this specification uses conceptual names. Two API details are load-bearing for this spec and must be confirmed during the transport spike (§22): (a) how the Streamable HTTP client transport accepts an injected `*http.Client` (required for redirect and header control, see §9), and (b) whether `tools/list` pagination is exposed as an auto-paginating iterator or a manual `nextCursor` cursor (see §4.3.3).
 
 If the SDK does not implement a required behavior, isolate the workaround behind an internal interface and document it. Do not spread SDK-specific types throughout the CLI.
 
@@ -74,6 +73,16 @@ Suggested library:
 - `github.com/santhosh-tekuri/jsonschema/v6`
 
 The validator must tolerate the schema dialects commonly emitted by MCP servers. If a schema cannot be compiled locally, report a warning in human-readable mode and allow the server to perform validation. Invalid or unsupported server schemas must not make a tool permanently unusable.
+
+### 2.6 Output serialization
+
+JSON output uses the standard library `encoding/json`.
+
+YAML output requires an explicit dependency. Use:
+
+- `sigs.k8s.io/yaml`
+
+This library marshals through JSON struct tags, so YAML field names stay identical to JSON output. Do not use a YAML library with independent struct tags, as that would let JSON and YAML representations drift apart. YAML output must be structurally equivalent to JSON output for the same command.
 
 ---
 
@@ -147,6 +156,7 @@ Defaults:
 
 - `--output human` when stdout is a terminal
 - `--output json` is not automatically selected merely because stdout is redirected
+- when stdout is redirected or piped, the default remains `human`; redirection only disables color, it does not change the output format. Machine-readable output is selected solely by an explicit `--output` value.
 - `--timeout 30s`
 - `--connect-timeout 15s`
 - `--log-level warn`
@@ -192,6 +202,14 @@ For HTTP servers:
       --url https://example.com/mcp \
       --header-env Authorization=MCP_AUTHORIZATION
 
+To configure bearer-token authentication, use `--bearer-env` to name the environment variable holding the token:
+
+    mcpctl server add --name remote \
+      --url https://example.com/mcp \
+      --bearer-env MCP_BEARER_TOKEN
+
+`--bearer-env` writes a `bearer_token.env` entry (see §5.2). It is mutually exclusive with configuring an `Authorization` header through `--header-env` or `--header-literal`; supplying both must fail with a configuration error (see §5.4).
+
 Secrets must not be accepted as literal configuration values by default. Environment-variable references are preferred.
 
 A separate explicit flag may permit literal headers, but help text must warn that this writes secrets to disk:
@@ -231,6 +249,24 @@ For HTTP servers with bearer tokens, show the environment variable name, never t
 
 JSON and YAML output should preserve the complete server definition with the same secret-placeholder behavior as `server list`.
 
+### 4.2.3 Transport and authentication flags
+
+The following flags define or authenticate a transport. They apply both to `server add` (where they are written to configuration) and to ephemeral `tools` invocations (where they configure a one-shot connection). The same parsing and mutual-exclusion rules apply in both contexts.
+
+    FLAG                     TRANSPORT   PURPOSE
+    --stdio                  stdio       Marks the invocation as stdio; server argv follows `--`
+    --url URL                http        Streamable HTTP endpoint (absolute http/https)
+    --header-env NAME=VAR    http        Static header whose value comes from environment variable VAR
+    --header-literal NAME=V  http        Static header with a literal value (unsafe; warns; not default)
+    --bearer-env VAR         http        Bearer token read from environment variable VAR
+
+Rules:
+
+- `--stdio` and `--url` are mutually exclusive.
+- `--header-env`, `--header-literal`, and `--bearer-env` apply only to HTTP transports; combining them with `--stdio` is a usage error.
+- Defining `Authorization` via `--header-env`/`--header-literal` and also supplying `--bearer-env` is a configuration error (see §5.4).
+- For `tools` commands, `--server` selects a named server and is mutually exclusive with all of the flags above (see §4.3).
+
 ## 4.3 Tool commands
 
 Named servers are referenced with `--server`. Ephemeral servers are specified with `--stdio` or `--url`. These are mutually exclusive: exactly one of `--server`, `--stdio`, or `--url` must be provided for every tools command.
@@ -262,22 +298,36 @@ Examples:
 
 A user must be able to invoke a server without adding it to configuration. Use `--stdio` or `--url` instead of `--server`:
 
+These flags are mutually exclusive with `--server`.
+
+#### Argument grammar
+
+The ephemeral-stdio grammar must be fixed and enforced exactly as follows:
+
+    mcpctl tools <sub> --stdio [TOOL] [tool-arg flags] -- <server-command> [server-args...]
+
+- The tool name (for `describe` and `call`) is a positional that appears **before** `--`. `tools list` takes no tool name.
+- All tool-argument flags (`--json`, `--json-file`, `--arg`) appear **before** `--`.
+- Everything **after the first `--`** is the server command and its arguments, preserved verbatim. A second `--` intended for the server is part of the server args.
+- If `--stdio` is given with no server command after `--`, fail with a usage error.
+
+The HTTP grammar has no `--`, since there is no child process:
+
+    mcpctl tools <sub> --url URL [auth flags] [TOOL] [tool-arg flags]
+
 Examples:
 
-    mcpctl tools list --stdio -- npx -y example-mcp-server
+    mcpctl tools list     --stdio -- npx -y example-mcp-server
+    mcpctl tools describe --stdio read_file -- ./server
+    mcpctl tools call     --stdio echo --json '{"message":"hello"}' -- ./server
 
-    mcpctl tools list \
-      --url https://example.com/mcp \
+    mcpctl tools list --url https://example.com/mcp \
       --header-env Authorization=MCP_AUTHORIZATION
 
-    mcpctl tools call \
-      --url https://example.com/mcp \
-      search \
+    mcpctl tools call --url https://example.com/mcp search \
       --json '{"query":"MCP"}'
 
-These flags are mutually exclusive with `--server`. The tool name remains positional after the server flags.
-
-Cobra argument parsing for stdio commands must preserve all arguments after `--` exactly. The stdio command must be executed directly, not through a shell.
+Cobra argument parsing must preserve all arguments after `--` exactly (use `ArgsLenAtDash()` to split the tool-side flags from the server argv). The stdio command must be executed directly, not through a shell.
 
 Command arguments are never shell-evaluated. Help must include working examples for both named and ephemeral invocation.
 
@@ -314,20 +364,29 @@ To force a string that resembles JSON, users may provide a JSON string:
 
     --arg value='"true"'
 
+Because values that parse as JSON are decoded as JSON, numeric-looking values are converted to numbers, with consequences that must be documented in help and the README:
+
+- `--arg version=1.10` decodes to the number `1.1` — the trailing zero is lost.
+- `--arg id=1e3` decodes to the number `1000`.
+- `--arg zip=01234` stays the string `"01234"`, because a leading zero is not valid JSON.
+
+When a value must be preserved as text, quote it as a JSON string (`--arg version='"1.10"'`) or use `--json`/`--json-file`.
+
 Do not invent dotted-path or bracket notation in version 1. Complex nested arguments should use `--json` or `--json-file`.
 
 ### 4.3.3 Pagination
 
-`tools list` must retrieve all pages by default.
+`tools list` must retrieve all pages by default, following the server's `nextCursor` until it is empty.
 
-Optional flags:
+MCP does not expose a client-controllable page-size field for `tools/list`, so no `--page-size` flag is provided in version 1.
 
-    --page-size N
+Optional flag:
+
     --max-pages N
 
-If MCP does not expose a page-size request field, `--page-size` may be omitted. `--max-pages` should protect against invalid servers that repeat cursors indefinitely.
+`--max-pages` bounds the number of pages fetched and protects against servers that repeat or rotate cursors indefinitely. Its default is `1000`. When the cap is reached, terminate and report a protocol error rather than silently truncating; the error must state that the page cap was hit.
 
-The client must detect repeated cursors and terminate with a protocol error rather than loop forever.
+Independently of `--max-pages`, the client must detect a repeated cursor (a `nextCursor` equal to one already seen) and terminate immediately with a protocol error rather than loop forever. This is the primary defense; `--max-pages` is the backstop for cursors that rotate without repeating.
 
 ---
 
@@ -343,7 +402,7 @@ Default file:
 - macOS: under the directory returned by `os.UserConfigDir()`
 - Windows: under the directory returned by `os.UserConfigDir()`
 
-The actual path must be determined by Go at runtime, not hard-coded by operating system.
+The actual path must be determined by Go at runtime, not hard-coded by operating system. Note that on macOS `os.UserConfigDir()` returns `~/Library/Application Support`, which is unconventional for a terminal tool. To match the expectations of CLI users on all platforms, honor `XDG_CONFIG_HOME` when it is set (using `$XDG_CONFIG_HOME/mcpctl/config.toml`) before falling back to `os.UserConfigDir()`.
 
 `--config` overrides the path.
 
@@ -566,7 +625,7 @@ The SDK should handle:
 - server notifications
 - transport-level framing
 
-If `--protocol-version` is specified, pass it through only if the SDK supports an explicit version override. Otherwise return an unsupported-option error rather than silently ignoring it.
+If `--protocol-version` is specified, pass it through to the SDK's client initialization as an explicit version override; the SDK (v1.5.x) supports this. If a future SDK regression removes the override capability, return an unsupported-option error rather than silently ignoring the flag.
 
 ---
 
@@ -619,6 +678,8 @@ Suggested shutdown timing:
 - termination wait: up to 2 seconds
 - force kill afterward
 
+This same cleanup sequence must run whenever the command-scoped context ends for any reason — user interruption (§14, exit `130`), a timeout (§14, exit `10`), or normal completion — not only on Ctrl-C. A timeout must never leave an orphaned stdio child.
+
 An unexpected child exit must become a transport error. Include the exit code and safe stderr context if available, but never leak secrets.
 
 ---
@@ -637,11 +698,13 @@ Requirements:
 - honor context cancellation and deadlines
 - use a configurable connection timeout
 - follow safe HTTP redirect behavior
-- do not forward authorization headers to a different host during redirects
+- do not forward credentials to a different origin during redirects (see below)
 - use a descriptive `User-Agent`, for example:
   `mcpctl/<version>`
 
-The HTTP client should use a cloned `http.Transport`, not mutate `http.DefaultTransport`.
+The HTTP client should use a cloned `http.Transport`, not mutate `http.DefaultTransport`. Provide this client to the SDK's Streamable HTTP transport via its client-injection option (confirm the exact option during the §22 spike).
+
+Redirect credential protection must not rely on Go's defaults alone. Go's `net/http` strips only `Authorization`, `Www-Authenticate`, `Cookie`, and `Cookie2` when redirecting to a different domain; it does **not** strip arbitrary configured headers. Because credentials may be configured under a custom header name via `--header-env` (for example `X-API-Key`), install a custom `CheckRedirect` on the `http.Client` that, on any redirect to a different origin (scheme + host + port), removes every header the client added — all `--header-env`/`--header-literal` headers and the bearer `Authorization` header — regardless of name. The redaction set from §12.2 informs which header names are sensitive, but for cross-origin redirects strip all client-added headers rather than attempting to classify them.
 
 Configure reasonable defaults:
 
@@ -953,7 +1016,7 @@ Use table-driven tests where appropriate.
 
 ## 16.2 Stdio integration tests
 
-Create a deterministic test MCP server executable or test helper process.
+Create a deterministic test MCP server executable or test helper process. The server side of the official SDK can back this helper, so the protocol layer does not need to be hand-rolled. Note that a real subprocess binary is still required for the end-to-end process-cleanup assertions (§20.7); an in-memory transport cannot exercise process-group termination.
 
 It should support scenarios for:
 
@@ -994,7 +1057,7 @@ Cover:
 - command timeout
 - cancellation
 - redirect to the same origin
-- redirect to another origin without credential forwarding
+- redirect to another origin without credential forwarding, covering both a bearer `Authorization` header and a custom credential header (for example `X-API-Key`), since Go's defaults strip the former but not the latter (§9)
 - malformed protocol responses
 
 Tests should verify behavior rather than reproduce SDK internals.
@@ -1174,7 +1237,7 @@ must:
 - terminate the server
 - exit `0`
 
-A tool call such as:
+A tool call using the grammar fixed in §4.3.1:
 
     mcpctl tools call \
       --stdio \
@@ -1182,7 +1245,7 @@ A tool call such as:
       --json '{"message":"hello"}' \
       -- ./test-mcp-server
 
-or the final documented equivalent syntax must:
+must:
 
 - send an object containing `message`
 - preserve the MCP result
@@ -1324,4 +1387,3 @@ When implementing this specification:
    - avoid exposing the workaround to command handlers
 9. Prioritize correct lifecycle handling and stdout/stderr separation over decorative CLI features.
 10. Treat cross-platform process cleanup, authentication redaction, and machine-readable output as core correctness requirements.
-````
