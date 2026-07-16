@@ -76,6 +76,8 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 		return apperror.Usage("%s", err.Error())
 	})
 
+	root.AddCommand(newVersionCmd())
+
 	return root, g
 }
 
