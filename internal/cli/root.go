@@ -3,6 +3,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -49,7 +50,9 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
-				cmd.Println(buildinfo.Short())
+				// Version output is a command result → stdout. cmd.Println
+				// routes to stderr, so write to OutOrStdout explicitly.
+				fmt.Fprintln(cmd.OutOrStdout(), buildinfo.Short())
 				return nil
 			}
 			return cmd.Help()

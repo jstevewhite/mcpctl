@@ -1,22 +1,37 @@
 package cli
 
 import (
-	"bytes"
+	"io"
+	"os"
 	"testing"
 
 	"mcpctl/internal/apperror"
 )
 
-func TestVersionFlagPrintsShort(t *testing.T) {
-	root, _ := NewRootCmd()
-	var out bytes.Buffer
-	root.SetOut(&out)
-	root.SetArgs([]string{"--version"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// TestVersionFlagWritesShortToStdout captures the real os.Stdout (no SetOut)
+// so it verifies the version line lands on stdout, not stderr. A SetOut/SetErr
+// two-buffer test cannot catch this: Cobra's OutOrStderr() resolves to the
+// SetOut writer, so the buggy cmd.Println path would still hit the same buffer.
+func TestVersionFlagWritesShortToStdout(t *testing.T) {
+	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := out.String(); got != "mcpctl dev\n" {
-		t.Fatalf("--version = %q, want %q", got, "mcpctl dev\n")
+	os.Stdout = w
+
+	root, _ := NewRootCmd()
+	root.SetArgs([]string{"--version"})
+	runErr := root.Execute()
+	_ = w.Close()
+
+	out, _ := io.ReadAll(r)
+	if runErr != nil {
+		t.Fatalf("unexpected error: %v", runErr)
+	}
+	if got := string(out); got != "mcpctl dev\n" {
+		t.Fatalf("--version stdout = %q, want %q", got, "mcpctl dev\n")
 	}
 }
 
