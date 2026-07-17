@@ -695,6 +695,19 @@ git commit -m "feat(cli): server add and remove (validate, write config, no conn
 
 ---
 
-## After Phase 4B
+## Post-review hardening (whole-Phase-4 review)
 
-Whole-Phase-4 review (4A + 4B) on the strongest model; triage/fix the accumulated Minors (incl. `go mod tidy` for jsonschema, table-cell newline collapse from 4A-2); merge `v4-ux-validation` to `main`. Remaining: Phase 5 (release — README, completions, GoReleaser); module-path migration on GitHub-repo creation.
+Applied on top of 4A + 4B (commits `dee7cf7`, `f75af3a`, `dae2dc6`, `cc07693`):
+
+- **Terminal-escape hardening** (`internal/output/human.go`, §15.9): `toolResultHuman` sanitizes server-controlled `MIMEType`/`URI` on image/audio/resource blocks (previously only text was sanitized — a real injection gap); tool-list table cells collapse newlines/tabs so an untrusted tool Name/Description can't forge a table row/column.
+- **Full env redaction in machine output** (`internal/cli/server.go`, §4.2.1): `redactServer(sc, machine)` — json/yaml `server show`/`list` (the secret-exfil channel) redact ALL env values, while interactive human `show` keeps the key-heuristic so benign values like `LOG_LEVEL=warn` stay visible (§4.2.2). `HeaderEnv` is now deep-copied.
+- **Atomic config write** (`internal/config/save.go`, §15.6): `Save` writes a 0600 temp file then `os.Rename`s over the target — a crash can't truncate the config, and there's no loose-perm window on overwrite.
+- **`go mod tidy`**: `jsonschema/v6` and `sigs.k8s.io/yaml` moved to direct requires.
+
+Deferred (test backlog): jsonl single-object + `SchemaUnusableError` warn-path e2e; `server add` rejecting stray pre-`--` positional args; the corrupt-existing-config error path in `add`.
+
+---
+
+## After Phase 4
+
+Merge `v4-ux-validation` to `main`. Remaining: Phase 5 (release — README, shell completions, GoReleaser artifacts); module-path migration from local `mcpctl` to `github.com/<owner>/mcpctl` on GitHub-repo creation.
