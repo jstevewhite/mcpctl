@@ -69,19 +69,51 @@ func mergedEnv(overrides map[string]string) []string {
 
 func (c *stdioClient) ServerInfo() ServerInfo { return c.info }
 
-// The following three methods are temporary placeholders that exist only so
+// The following method is a temporary placeholder that exists only so
 // *stdioClient satisfies the Client interface (defined in full in Task 1,
-// before any implementation existed). They are NOT part of Task 5's scope and
-// carry no real logic; Task 6 replaces ListTools/ListAllTools and Task 7
-// replaces CallTool with real implementations against session.ListTools /
-// session.CallTool.
+// before any implementation existed). It is NOT part of Task 5's scope and
+// carries no real logic; Task 7 replaces CallTool with a real implementation
+// against session.CallTool.
 
 func (c *stdioClient) ListTools(ctx context.Context, cursor string) (ToolPage, error) {
-	return ToolPage{}, apperror.Internal("ListTools: not yet implemented (Task 6)")
+	res, err := c.session.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
+	if err != nil {
+		return ToolPage{}, apperror.Wrap(apperror.KindProtocol, err, "list tools")
+	}
+	page := ToolPage{NextCursor: res.NextCursor}
+	for _, t := range res.Tools {
+		page.Tools = append(page.Tools, toToolInfo(t))
+	}
+	return page, nil
 }
 
+// ListAllTools follows NextCursor to completion. It caps at maxPages and
+// terminates with a protocol error if a cursor repeats (a misbehaving server
+// that loops) rather than paginating forever.
 func (c *stdioClient) ListAllTools(ctx context.Context, maxPages int) ([]ToolInfo, error) {
-	return nil, apperror.Internal("ListAllTools: not yet implemented (Task 6)")
+	var all []ToolInfo
+	seen := map[string]bool{}
+	cursor := ""
+	for page := 1; ; page++ {
+		if page > maxPages {
+			return nil, apperror.New(apperror.KindProtocol,
+				"tools/list exceeded the page cap (%d pages); server may be paginating without end", maxPages)
+		}
+		p, err := c.ListTools(ctx, cursor)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, p.Tools...)
+		if p.NextCursor == "" {
+			return all, nil
+		}
+		if seen[p.NextCursor] {
+			return nil, apperror.New(apperror.KindProtocol,
+				"tools/list returned a repeated cursor; server is looping")
+		}
+		seen[p.NextCursor] = true
+		cursor = p.NextCursor
+	}
 }
 
 func (c *stdioClient) CallTool(ctx context.Context, name string, arguments map[string]any) (ToolResult, error) {
