@@ -24,14 +24,14 @@ type DefaultsConfig struct {
 // ServerConfig is a single named server definition.
 type ServerConfig struct {
 	Transport   string            `toml:"transport"`
-	Command     string            `toml:"command"`
-	Args        []string          `toml:"args"`
-	CWD         string            `toml:"cwd"`
-	Env         map[string]string `toml:"env"`
-	URL         string            `toml:"url"`
-	Headers     map[string]string `toml:"headers"`
-	HeaderEnv   map[string]string `toml:"header_env"`
-	BearerToken *TokenSource      `toml:"bearer_token"`
+	Command     string            `toml:"command,omitempty"`
+	Args        []string          `toml:"args,omitempty"`
+	CWD         string            `toml:"cwd,omitempty"`
+	Env         map[string]string `toml:"env,omitempty"`
+	URL         string            `toml:"url,omitempty"`
+	Headers     map[string]string `toml:"headers,omitempty"`
+	HeaderEnv   map[string]string `toml:"header_env,omitempty"`
+	BearerToken *TokenSource      `toml:"bearer_token,omitempty"`
 }
 
 // TokenSource names the environment variable holding a bearer token.
