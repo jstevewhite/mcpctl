@@ -22,8 +22,8 @@ func buildBinaries(t *testing.T) (mcpctl, server string) {
 	mcpctl = filepath.Join(dir, "mcpctl")
 	server = filepath.Join(dir, "test-server")
 	for _, b := range []struct{ out, pkg string }{
-		{mcpctl, "mcpctl/cmd/mcpctl"},
-		{server, "mcpctl/internal/testserver/stdio"},
+		{mcpctl, "github.com/jstevewhite/mcpctl/cmd/mcpctl"},
+		{server, "github.com/jstevewhite/mcpctl/internal/testserver/stdio"},
 	} {
 		build := exec.Command("go", "build", "-o", b.out, b.pkg)
 		build.Stderr = os.Stderr

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // ParseLevel converts a level name to an slog.Level.

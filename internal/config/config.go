@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // Config is the top-level configuration document.

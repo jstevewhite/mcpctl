@@ -4,10 +4,10 @@ import (
 	"os"
 	"strings"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/auth"
-	"mcpctl/internal/client"
-	"mcpctl/internal/config"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/auth"
+	"github.com/jstevewhite/mcpctl/internal/client"
+	"github.com/jstevewhite/mcpctl/internal/config"
 )
 
 // ServerFlags holds the mutually-exclusive server selectors bound on a tools command.

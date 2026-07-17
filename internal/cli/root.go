@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/buildinfo"
-	"mcpctl/internal/logging"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/buildinfo"
+	"github.com/jstevewhite/mcpctl/internal/logging"
 )
 
 const (

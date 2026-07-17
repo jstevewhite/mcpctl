@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"mcpctl/internal/client"
+	"github.com/jstevewhite/mcpctl/internal/client"
 )
 
 func TestParseFormat(t *testing.T) {

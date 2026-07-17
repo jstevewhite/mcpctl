@@ -3,7 +3,7 @@ package arguments
 import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // SchemaUnusableError signals that a tool's input schema could not be compiled

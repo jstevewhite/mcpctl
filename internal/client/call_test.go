@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 func TestCallToolEchoText(t *testing.T) {

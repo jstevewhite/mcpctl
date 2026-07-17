@@ -3,7 +3,7 @@ package output
 import (
 	"io"
 
-	"mcpctl/internal/config"
+	"github.com/jstevewhite/mcpctl/internal/config"
 )
 
 // NamedServer pairs a server name with its (already-redacted) definition.

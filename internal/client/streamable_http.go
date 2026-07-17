@@ -11,8 +11,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/buildinfo"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/buildinfo"
 )
 
 // statusRecorder holds the most recent HTTP response status seen by the
@@ -50,7 +50,7 @@ func (t *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		}
 	}
 	if r.Header.Get("User-Agent") == "" {
-		r.Header.Set("User-Agent", "mcpctl/"+buildinfo.Version)
+		r.Header.Set("User-Agent", "github.com/jstevewhite/mcpctl/"+buildinfo.Version)
 	}
 	resp, err := t.base.RoundTrip(r)
 	if resp != nil {

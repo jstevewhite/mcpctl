@@ -7,7 +7,7 @@ import (
 
 	toml "github.com/pelletier/go-toml/v2"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // Load reads and validates a config file. A missing file is a config error.

@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // Parse builds the arguments object. Exactly one of jsonStr, jsonFile, or

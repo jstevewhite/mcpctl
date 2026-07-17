@@ -1,4 +1,4 @@
-module mcpctl
+module github.com/jstevewhite/mcpctl
 
 go 1.25.0
 

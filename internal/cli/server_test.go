@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"mcpctl/internal/config"
+	"github.com/jstevewhite/mcpctl/internal/config"
 	"testing"
 )
 

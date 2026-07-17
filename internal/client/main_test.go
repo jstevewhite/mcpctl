@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 	}
 
 	testServerPath = filepath.Join(dir, "test-server")
-	build := exec.Command("go", "build", "-o", testServerPath, "mcpctl/internal/testserver/stdio")
+	build := exec.Command("go", "build", "-o", testServerPath, "github.com/jstevewhite/mcpctl/internal/testserver/stdio")
 	build.Stderr = os.Stderr
 	if err := build.Run(); err != nil {
 		panic("building test server: " + err.Error())

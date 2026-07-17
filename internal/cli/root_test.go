@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // TestVersionFlagWritesShortToStdout captures the real os.Stdout (no SetOut)

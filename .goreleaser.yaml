@@ -10,9 +10,9 @@ builds:
     goarch: [amd64, arm64]
     ldflags:
       - -s -w
-      - -X mcpctl/internal/buildinfo.Version={{.Version}}
-      - -X mcpctl/internal/buildinfo.Commit={{.Commit}}
-      - -X mcpctl/internal/buildinfo.Date={{.Date}}
+      - -X github.com/jstevewhite/mcpctl/internal/buildinfo.Version={{.Version}}
+      - -X github.com/jstevewhite/mcpctl/internal/buildinfo.Commit={{.Commit}}
+      - -X github.com/jstevewhite/mcpctl/internal/buildinfo.Date={{.Date}}
 
 archives:
   - formats: [tar.gz]

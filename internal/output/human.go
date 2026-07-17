@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"mcpctl/internal/client"
+	"github.com/jstevewhite/mcpctl/internal/client"
 )
 
 const descWidth = 60

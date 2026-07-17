@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/cli"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/cli"
 )
 
 func main() {

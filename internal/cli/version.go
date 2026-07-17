@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"mcpctl/internal/buildinfo"
+	"github.com/jstevewhite/mcpctl/internal/buildinfo"
 )
 
 func newVersionCmd() *cobra.Command {

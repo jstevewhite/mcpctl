@@ -5,8 +5,8 @@ package output
 import (
 	"io"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/client"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/client"
 )
 
 type Format string

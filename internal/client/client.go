@@ -5,7 +5,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"mcpctl/internal/buildinfo"
+	"github.com/jstevewhite/mcpctl/internal/buildinfo"
 )
 
 // Client is the SDK-free interface command handlers use. Implementations

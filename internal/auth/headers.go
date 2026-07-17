@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // Spec describes the auth inputs for an HTTP server, before env resolution.

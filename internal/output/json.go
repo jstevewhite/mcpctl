@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"mcpctl/internal/client"
+	"github.com/jstevewhite/mcpctl/internal/client"
 )
 
 func toolListDoc(server string, tools []client.ToolInfo) any {

@@ -11,10 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/auth"
-	"mcpctl/internal/config"
-	"mcpctl/internal/output"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/auth"
+	"github.com/jstevewhite/mcpctl/internal/config"
+	"github.com/jstevewhite/mcpctl/internal/output"
 )
 
 const redacted = "<redacted>"

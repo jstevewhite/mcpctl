@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/arguments"
-	"mcpctl/internal/client"
-	"mcpctl/internal/output"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/arguments"
+	"github.com/jstevewhite/mcpctl/internal/client"
+	"github.com/jstevewhite/mcpctl/internal/output"
 )
 
 const defaultMaxPages = 1000

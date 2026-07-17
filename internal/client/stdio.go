@@ -10,8 +10,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"mcpctl/internal/apperror"
-	"mcpctl/internal/process"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/process"
 )
 
 // mcpSession holds a live MCP session and the transport-agnostic tool

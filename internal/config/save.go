@@ -6,7 +6,7 @@ import (
 
 	toml "github.com/pelletier/go-toml/v2"
 
-	"mcpctl/internal/apperror"
+	"github.com/jstevewhite/mcpctl/internal/apperror"
 )
 
 // Save writes cfg to path as TOML with owner-only (0600) permissions, creating
