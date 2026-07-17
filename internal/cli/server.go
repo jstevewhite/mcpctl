@@ -28,14 +28,16 @@ func newServerCmd(g *GlobalFlags) *cobra.Command {
 	return cmd
 }
 
-// redactServer returns a copy safe to display: literal secret values hidden,
-// env-var references (which are names, not secrets) shown as-is.
-func redactServer(sc config.ServerConfig) config.ServerConfig {
+// redactServer returns a copy safe to display. Literal Header values are always
+// hidden. Env values are hidden if the key is sensitive; in machine output
+// (json/yaml — the exfil channel), ALL env values are hidden. Env-var name
+// references (HeaderEnv, BearerToken.Env) are shown (names, not secrets).
+func redactServer(sc config.ServerConfig, machine bool) config.ServerConfig {
 	out := sc
 	if sc.Env != nil {
 		out.Env = make(map[string]string, len(sc.Env))
 		for k, v := range sc.Env {
-			if auth.IsSensitive(k) {
+			if machine || auth.IsSensitive(k) {
 				out.Env[k] = redacted
 			} else {
 				out.Env[k] = v
@@ -45,11 +47,15 @@ func redactServer(sc config.ServerConfig) config.ServerConfig {
 	if sc.Headers != nil {
 		out.Headers = make(map[string]string, len(sc.Headers))
 		for k := range sc.Headers {
-			out.Headers[k] = redacted // literal header values are potential secrets
+			out.Headers[k] = redacted
 		}
 	}
-	// HeaderEnv values are env var NAMES (references), not secrets — left as-is.
-	// BearerToken.Env is likewise a name — left as-is.
+	if sc.HeaderEnv != nil {
+		out.HeaderEnv = make(map[string]string, len(sc.HeaderEnv))
+		for k, v := range sc.HeaderEnv {
+			out.HeaderEnv[k] = v
+		}
+	}
 	return out
 }
 
@@ -109,11 +115,10 @@ func newServerShowCmd(g *GlobalFlags) *cobra.Command {
 			if !ok {
 				return apperror.Config("no server named %q in configuration", name)
 			}
-			red := redactServer(sc)
 			if f == output.FormatHuman {
-				return showServerHuman(cmd.OutOrStdout(), name, red)
+				return showServerHuman(cmd.OutOrStdout(), name, redactServer(sc, false))
 			}
-			return output.Server(cmd.OutOrStdout(), f, name, red)
+			return output.Server(cmd.OutOrStdout(), f, name, redactServer(sc, true))
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "server name")
@@ -253,7 +258,7 @@ func endpointSummary(sc config.ServerConfig) string {
 func redactServerMap(servers map[string]config.ServerConfig, order []string) []output.NamedServer {
 	out := make([]output.NamedServer, 0, len(order))
 	for _, n := range order {
-		out = append(out, output.NamedServer{Name: n, Server: redactServer(servers[n])})
+		out = append(out, output.NamedServer{Name: n, Server: redactServer(servers[n], true)})
 	}
 	return out
 }

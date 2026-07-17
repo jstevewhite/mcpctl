@@ -13,7 +13,7 @@ func TestRedactServerHidesSecrets(t *testing.T) {
 		Headers:   map[string]string{"X-Api-Key": "literal-secret"},
 		HeaderEnv: map[string]string{"Authorization": "MCP_AUTH"},
 	}
-	got := redactServer(sc)
+	got := redactServer(sc, false)
 	if got.Env["LOG_LEVEL"] != "warn" {
 		t.Errorf("non-sensitive env value should be shown, got %q", got.Env["LOG_LEVEL"])
 	}
@@ -25,6 +25,22 @@ func TestRedactServerHidesSecrets(t *testing.T) {
 	}
 	if got.HeaderEnv["Authorization"] != "MCP_AUTH" {
 		t.Errorf("header_env reference (an env var name, not a secret) should be shown, got %q", got.HeaderEnv["Authorization"])
+	}
+}
+
+func TestRedactServerMachineRedactsAllEnv(t *testing.T) {
+	sc := config.ServerConfig{Transport: "stdio", Env: map[string]string{"LOG_LEVEL": "warn", "DATABASE_URL": "postgres://u:p@h/db"}}
+	got := redactServer(sc, true)
+	if got.Env["LOG_LEVEL"] == "warn" || got.Env["DATABASE_URL"] == "postgres://u:p@h/db" {
+		t.Fatalf("machine mode must redact ALL env values, got %+v", got.Env)
+	}
+}
+
+func TestRedactServerDoesNotMutateOriginal(t *testing.T) {
+	sc := config.ServerConfig{Env: map[string]string{"API_KEY": "topsecret"}, Headers: map[string]string{"X-Api-Key": "lit"}}
+	_ = redactServer(sc, false)
+	if sc.Env["API_KEY"] != "topsecret" || sc.Headers["X-Api-Key"] != "lit" {
+		t.Fatal("redactServer must not mutate the caller's config")
 	}
 }
 
