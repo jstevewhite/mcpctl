@@ -1,3 +1,5 @@
+//go:build !windows
+
 package client
 
 import (
@@ -14,7 +16,6 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(dir)
 
 	testServerPath = filepath.Join(dir, "test-server")
 	build := exec.Command("go", "build", "-o", testServerPath, "mcpctl/internal/testserver/stdio")
@@ -22,5 +23,7 @@ func TestMain(m *testing.M) {
 	if err := build.Run(); err != nil {
 		panic("building test server: " + err.Error())
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
 }
