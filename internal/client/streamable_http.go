@@ -37,7 +37,10 @@ func (t *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	r := req.Clone(req.Context())
 	if originOf(r.URL) == t.origin {
 		for k, vs := range t.header {
-			r.Header[k] = append([]string(nil), vs...)
+			r.Header.Del(k) // canonicalizes; clears anything already present
+			for _, v := range vs {
+				r.Header.Add(k, v)
+			}
 		}
 	} else {
 		// Cross-origin (e.g. after a redirect): ensure none of our configured

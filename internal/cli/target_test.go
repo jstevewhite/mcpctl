@@ -42,6 +42,15 @@ func TestResolveMutualExclusion(t *testing.T) {
 	}
 }
 
+func TestResolveURLMutualExclusion(t *testing.T) {
+	if _, _, err := resolveTarget(ServerFlags{URL: "https://x", Stdio: true}, nil, []string{"srv"}, true, ""); err == nil {
+		t.Fatal("--url and --stdio together must error")
+	}
+	if _, _, err := resolveTarget(ServerFlags{URL: "https://x", Server: "s"}, nil, nil, false, ""); err == nil {
+		t.Fatal("--url and --server together must error")
+	}
+}
+
 func TestResolveEphemeralURL(t *testing.T) {
 	t.Setenv("MCP_TOK", "secret")
 	target, _, err := resolveTarget(ServerFlags{URL: "https://example.com/mcp", BearerEnv: "MCP_TOK"}, nil, nil, false, "")
