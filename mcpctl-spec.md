@@ -27,7 +27,7 @@ The implementation should use the official Go MCP SDK rather than implementing M
 
 Use:
 
-- Go 1.24 or newer
+- Go 1.25 or newer. The official Go MCP SDK v1.5+ declares `go 1.25` in its module, so building the client requires the Go 1.25 toolchain; `GOTOOLCHAIN=auto` (the default) fetches it automatically. Set the module `go` directive and CI `go-version` to `1.25`.
 - Go modules
 - `context.Context` for all network, process, and MCP operations
 - `log/slog` for diagnostic logging
@@ -44,7 +44,17 @@ Use the official Go MCP SDK:
 - Do not depend directly on internal SDK packages
 - Do not manually implement MCP framing, initialization, capability negotiation, or Streamable HTTP session management unless an SDK defect makes it unavoidable
 
-Before implementation, confirm the current SDK API and adapt package names and constructor calls accordingly. The SDK API is authoritative where this specification uses conceptual names. Two API details are load-bearing for this spec and must be confirmed during the transport spike (§22): (a) how the Streamable HTTP client transport accepts an injected `*http.Client` (required for redirect and header control, see §9), and (b) whether `tools/list` pagination is exposed as an auto-paginating iterator or a manual `nextCursor` cursor (see §4.3.3).
+Before implementation, confirm the current SDK API and adapt package names and constructor calls accordingly. The SDK API is authoritative where this specification uses conceptual names.
+
+The Phase 2 stdio transport spike (SDK v1.5.0) confirmed:
+
+- The stdio client transport is `&mcp.CommandTransport{Command: *exec.Cmd}`: the caller builds the `*exec.Cmd` (command, args, `Dir`, `Env`, `Stderr`) and the SDK calls `.Start()`. That `*exec.Cmd` is the injection point for process-group setup (below).
+- `session.Close()` terminates only the **direct child** (stdin-close → SIGTERM → SIGKILL); it does **not** signal a process group, so an orphaned grandchild survives (proven). mcpctl must set up and tear down the process group itself (§8.3). The SDK does not wire child stderr — the caller must set `cmd.Stderr`.
+- `tools/list` pagination is a manual `ListTools(ctx, &ListToolsParams{Cursor})` → `ListToolsResult{NextCursor, Tools}` loop (an auto-paginating `Tools()` iterator also exists). There is **no** client-settable page size, confirming §4.3.3.
+- `CallTool(ctx, &CallToolParams{Name, Arguments any})` returns `*CallToolResult{Content []Content, StructuredContent any, IsError bool}`; `Content` is an interface with concrete `*TextContent`/`*ImageContent`/`*AudioContent`/`*EmbeddedResource`. A tool error is `IsError=true` on a normal result (Go error nil); protocol errors surface as a Go error unwrapping to `*jsonrpc.Error{Code,Message}`.
+- The SDK requires the Go 1.25 toolchain (§2.1) and exposes **no** public protocol-version override (§7).
+
+The Streamable HTTP transport's `*http.Client` injection point (required for §9 redirect/header control) remains to be confirmed by the Phase 3 spike.
 
 If the SDK does not implement a required behavior, isolate the workaround behind an internal interface and document it. Do not spread SDK-specific types throughout the CLI.
 
@@ -625,7 +635,7 @@ The SDK should handle:
 - server notifications
 - transport-level framing
 
-If `--protocol-version` is specified, pass it through to the SDK's client initialization as an explicit version override; the SDK (v1.5.x) supports this. If a future SDK regression removes the override capability, return an unsupported-option error rather than silently ignoring the flag.
+The SDK v1.5.x hardcodes the protocol version (`2025-11-25`) and exposes no public API to override it (its `ClientSessionOptions.protocolVersion` field is unexported; confirmed by the transport spike). Therefore if `--protocol-version` is specified, return an unsupported-option error (usage error, exit code `2`) rather than silently ignoring it. If a future SDK release adds a public override, wire the flag through then.
 
 ---
 
