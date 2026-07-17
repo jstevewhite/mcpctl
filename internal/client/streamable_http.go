@@ -1,12 +1,17 @@
 package client
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"mcpctl/internal/apperror"
 	"mcpctl/internal/buildinfo"
 )
 
@@ -87,4 +92,81 @@ func buildHTTPClient(endpoint *url.URL, header http.Header) (*http.Client, *stat
 		},
 	}
 	return c, rec, nil
+}
+
+// DialHTTP connects to a Streamable HTTP MCP server and returns a live Client.
+func DialHTTP(ctx context.Context, spec HTTPSpec) (Client, error) {
+	endpoint, err := url.Parse(spec.URL)
+	if err != nil || !endpoint.IsAbs() || (endpoint.Scheme != "http" && endpoint.Scheme != "https") {
+		return nil, apperror.New(apperror.KindConfig, "invalid server URL %q (want an absolute http/https URL)", spec.URL)
+	}
+	httpc, rec, err := buildHTTPClient(endpoint, spec.Header)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.KindConnection, err, "build http client")
+	}
+
+	transport := &mcp.StreamableClientTransport{
+		Endpoint:             spec.URL,
+		HTTPClient:           httpc,
+		DisableStandaloneSSE: true,
+		MaxRetries:           3,
+	}
+	wrap := httpWrapErr(rec)
+	cl := mcp.NewClient(clientInfo(), nil)
+	session, err := cl.Connect(ctx, transport, nil)
+	if err != nil {
+		httpc.CloseIdleConnections()
+		return nil, wrap(err, "connect to "+spec.URL)
+	}
+	init := session.InitializeResult()
+	return &httpClient{
+		mcpSession: &mcpSession{
+			sess: session,
+			info: ServerInfo{
+				Name:            init.ServerInfo.Name,
+				Version:         init.ServerInfo.Version,
+				ProtocolVersion: init.ProtocolVersion,
+				SupportsTools:   init.Capabilities.Tools != nil,
+			},
+			wrapErr: wrap,
+		},
+		httpc: httpc,
+	}, nil
+}
+
+// httpClient is a session backed by an HTTP transport.
+type httpClient struct {
+	*mcpSession
+	httpc *http.Client
+}
+
+func (c *httpClient) Close() error {
+	err := c.sess.Close()
+	c.httpc.CloseIdleConnections()
+	return err
+}
+
+// httpWrapErr classifies HTTP session errors. Context cancel/timeout map first;
+// then the recorded HTTP status distinguishes auth (401/403 → 4) from other
+// transport failures (→ 5); a 404 session-missing is a transport error; the
+// rest are protocol errors.
+func httpWrapErr(rec *statusRecorder) func(err error, op string) error {
+	return func(err error, op string) error {
+		switch {
+		case errors.Is(err, context.Canceled):
+			return apperror.Wrap(apperror.KindInterrupted, err, "%s", op)
+		case errors.Is(err, context.DeadlineExceeded):
+			return apperror.Wrap(apperror.KindTimeout, err, "%s", op)
+		}
+		switch code := rec.last(); {
+		case code == http.StatusUnauthorized || code == http.StatusForbidden:
+			return apperror.Wrap(apperror.KindAuth, err, "%s", op)
+		case code >= 400:
+			return apperror.Wrap(apperror.KindConnection, err, "%s", op)
+		}
+		if errors.Is(err, mcp.ErrSessionMissing) {
+			return apperror.Wrap(apperror.KindConnection, err, "%s", op)
+		}
+		return apperror.Wrap(apperror.KindProtocol, err, "%s", op)
+	}
 }
