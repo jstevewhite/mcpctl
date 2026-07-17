@@ -15,6 +15,18 @@ import (
 	"mcpctl/internal/logging"
 )
 
+const (
+	minTimeout = 1 * time.Second
+	maxTimeout = 24 * time.Hour
+)
+
+func validateTimeout(name string, d time.Duration) error {
+	if d < minTimeout || d > maxTimeout {
+		return apperror.Usage("--%s must be between %s and %s, got %s", name, minTimeout, maxTimeout, d)
+	}
+	return nil
+}
+
 // GlobalFlags holds values bound to the root's persistent flags.
 type GlobalFlags struct {
 	Config          string
@@ -46,7 +58,10 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 				return err
 			}
 			slog.SetDefault(logger)
-			return nil
+			if err := validateTimeout("timeout", g.Timeout); err != nil {
+				return err
+			}
+			return validateTimeout("connect-timeout", g.ConnectTimeout)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
@@ -63,7 +78,7 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 	f.StringVar(&g.Config, "config", "", "path to config file")
 	f.StringVar(&g.Output, "output", "human", "output format: human|json|jsonl|yaml")
 	f.DurationVar(&g.Timeout, "timeout", 30*time.Second, "overall command timeout")
-	f.DurationVar(&g.ConnectTimeout, "connect-timeout", 15*time.Second, "connection/initialization timeout")
+	f.DurationVar(&g.ConnectTimeout, "connect-timeout", 15*time.Second, "connection/initialization timeout (currently applied as part of --timeout for stdio; separate enforcement arrives with HTTP)")
 	f.StringVar(&g.LogLevel, "log-level", "warn", "log level: debug|info|warn|error")
 	f.BoolVar(&g.NoColor, "no-color", false, "disable colored output")
 	f.BoolVar(&g.NoValidate, "no-validate", false, "skip local argument validation")

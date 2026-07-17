@@ -59,3 +59,15 @@ func TestInvalidLogLevelIsUsageError(t *testing.T) {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
 }
+
+func TestInvalidTimeoutIsUsageError(t *testing.T) {
+	root, _ := NewRootCmd()
+	root.SetArgs([]string{"--timeout", "0s", "version"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected a usage error for a zero timeout")
+	}
+	if code := apperror.ExitCode(normalize(err)); code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+}
