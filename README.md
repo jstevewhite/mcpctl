@@ -12,9 +12,7 @@ supplied ad hoc on the command line.
 It is a single static binary with no runtime dependencies, built on the official
 [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk).
 
-This application was conceived by me, designed in collaboration with Claude Fable, and implemented primarily by Claude Sonnet and Opus. 
-
-It exists because I got tired of installing MCP servers in a client to test them. Then I realized it would be cool to expose MCP server to scripts. And then I realized it can allow a client that doesn't support MCP to use 'em. Not that there are many of those, just... a thing I noticed.
+It exists because I got tired of installing MCP servers in a client to test them. Then I realized it would be cool to expose MCP servers to scripts. And then I realized it can allow a client that doesn't support MCP to use 'em. Not that there are many of those, just... a thing I noticed.
 
 ## Features
 
@@ -405,6 +403,11 @@ internal/
   output/          # human / json / jsonl / yaml renderers
   testserver/      # deterministic MCP test servers
 ```
+
+## Credits
+
+This application was conceived by me, designed in collaboration with Claude
+Fable, and implemented primarily by Claude Sonnet and Opus.
 
 ## License
 
