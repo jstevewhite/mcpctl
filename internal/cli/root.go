@@ -58,6 +58,12 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 				return err
 			}
 			slog.SetDefault(logger)
+			if g.ProtocolVersion != "" {
+				// The bundled MCP SDK pins the protocol version and exposes no
+				// public override (spec §7). Reject the flag rather than
+				// silently ignoring it; wire it through if a future SDK adds one.
+				return apperror.Usage("--protocol-version is not supported: the bundled MCP SDK pins the protocol version and exposes no override")
+			}
 			if err := validateTimeout("timeout", g.Timeout); err != nil {
 				return err
 			}
@@ -82,7 +88,7 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 	f.StringVar(&g.LogLevel, "log-level", "warn", "log level: debug|info|warn|error")
 	f.BoolVar(&g.NoColor, "no-color", false, "disable colored output")
 	f.BoolVar(&g.NoValidate, "no-validate", false, "skip local argument validation")
-	f.StringVar(&g.ProtocolVersion, "protocol-version", "", "override the negotiated MCP protocol version")
+	f.StringVar(&g.ProtocolVersion, "protocol-version", "", "unsupported: the bundled MCP SDK pins the protocol version (setting this fails)")
 
 	root.Flags().BoolVar(&showVersion, "version", false, "print version and exit")
 

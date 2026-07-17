@@ -71,3 +71,33 @@ func TestInvalidTimeoutIsUsageError(t *testing.T) {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
 }
+
+// TestProtocolVersionIsUsageError verifies the spec §7 behavior: the flag is
+// rejected (exit 2) rather than silently ignored, since the SDK pins the
+// protocol version and exposes no override.
+func TestProtocolVersionIsUsageError(t *testing.T) {
+	root, _ := NewRootCmd()
+	root.SetArgs([]string{"--protocol-version", "2025-01-01", "version"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected a usage error for --protocol-version")
+	}
+	if code := apperror.ExitCode(normalize(err)); code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+}
+
+// TestMaxPagesZeroIsUsageError verifies the --max-pages guard rejects a
+// non-positive cap. The check runs before any transport is dialed, so the
+// stdio command after `--` is never executed.
+func TestMaxPagesZeroIsUsageError(t *testing.T) {
+	root, _ := NewRootCmd()
+	root.SetArgs([]string{"tools", "list", "--max-pages", "0", "--stdio", "--", "true"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected a usage error for --max-pages 0")
+	}
+	if code := apperror.ExitCode(normalize(err)); code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+}

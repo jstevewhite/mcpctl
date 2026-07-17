@@ -85,6 +85,7 @@ func dial(ctx context.Context, cmd *cobra.Command, g *GlobalFlags, sf ServerFlag
 
 func newToolsListCmd(g *GlobalFlags) *cobra.Command {
 	var sf ServerFlags
+	maxPages := defaultMaxPages
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List available tools",
@@ -92,6 +93,9 @@ func newToolsListCmd(g *GlobalFlags) *cobra.Command {
 			f, err := output.ParseFormat(g.Output)
 			if err != nil {
 				return err
+			}
+			if maxPages < 1 {
+				return apperror.Usage("--max-pages must be at least 1, got %d", maxPages)
 			}
 			ctx, cancel := commandContext(cmd.Context(), g.Timeout)
 			defer cancel()
@@ -101,7 +105,7 @@ func newToolsListCmd(g *GlobalFlags) *cobra.Command {
 			}
 			defer c.Close()
 
-			tools, err := c.ListAllTools(ctx, defaultMaxPages)
+			tools, err := c.ListAllTools(ctx, maxPages)
 			if err != nil {
 				return err
 			}
@@ -113,6 +117,7 @@ func newToolsListCmd(g *GlobalFlags) *cobra.Command {
 		},
 	}
 	addServerFlags(cmd, &sf)
+	cmd.Flags().IntVar(&maxPages, "max-pages", defaultMaxPages, "maximum tools/list pages to fetch before stopping")
 	return cmd
 }
 

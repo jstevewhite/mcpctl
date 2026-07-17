@@ -171,6 +171,30 @@ func TestE2EToolsCallNoValidateBypasses(t *testing.T) {
 	}
 }
 
+// TestE2EToolsListMaxPagesCap exercises the --max-pages flag against the stdio
+// test server, which exposes 8 tools at PageSize 2 → exactly 4 pages. A cap of
+// 4 fetches them all; a cap of 3 trips the page-cap protocol error (exit 6)
+// before the 4th page, proving the flag is wired through end-to-end.
+func TestE2EToolsListMaxPagesCap(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+
+	stdout, _, code := run(t, mcpctl, "tools", "list", "--max-pages", "4", "--stdio", "--", server)
+	if code != 0 {
+		t.Fatalf("--max-pages 4 exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "echo") {
+		t.Fatalf("expected full tool list with --max-pages 4:\n%s", stdout)
+	}
+
+	_, stderr, code := run(t, mcpctl, "tools", "list", "--max-pages", "3", "--stdio", "--", server)
+	if code != 6 {
+		t.Fatalf("--max-pages 3 exit = %d, want 6 (page-cap protocol error); stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stderr, "page cap") {
+		t.Fatalf("expected page-cap message on stderr:\n%s", stderr)
+	}
+}
+
 // newCLIHTTPServer returns an httptest.Server running a minimal MCP server
 // with an `echo` tool over Streamable HTTP, for exercising the real mcpctl
 // binary's --url path end-to-end. wrap, if non-nil, wraps the handler (e.g.
