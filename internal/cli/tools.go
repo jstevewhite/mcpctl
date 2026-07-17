@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"mcpctl/internal/apperror"
+	"mcpctl/internal/arguments"
 	"mcpctl/internal/client"
 	"mcpctl/internal/output"
 )
@@ -19,6 +20,7 @@ func newToolsCmd(g *GlobalFlags) *cobra.Command {
 	}
 	cmd.AddCommand(newToolsListCmd(g))
 	cmd.AddCommand(newToolsDescribeCmd(g))
+	cmd.AddCommand(newToolsCallCmd(g))
 	return cmd
 }
 
@@ -126,5 +128,69 @@ func newToolsDescribeCmd(g *GlobalFlags) *cobra.Command {
 		},
 	}
 	addServerFlags(cmd, &sf)
+	return cmd
+}
+
+func newToolsCallCmd(g *GlobalFlags) *cobra.Command {
+	var sf ServerFlags
+	var jsonStr, jsonFile string
+	var argKVs []string
+	cmd := &cobra.Command{
+		Use:   "call TOOL",
+		Short: "Call a tool with JSON arguments",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			f, err := output.ParseFormat(g.Output)
+			if err != nil {
+				return err
+			}
+			toolArguments, err := arguments.Parse(jsonStr, jsonFile, argKVs, cmd.InOrStdin())
+			if err != nil {
+				return err
+			}
+			ctx, cancel := commandContext(cmd.Context(), g.Timeout)
+			defer cancel()
+			c, toolArgs, err := dial(ctx, cmd, g, sf, args)
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			if len(toolArgs) != 1 {
+				return apperror.Usage("call requires exactly one TOOL name")
+			}
+			name := toolArgs[0]
+
+			// Confirm the tool exists before calling (spec §11): not-found -> exit 7.
+			tools, err := c.ListAllTools(ctx, defaultMaxPages)
+			if err != nil {
+				return err
+			}
+			found := false
+			for _, t := range tools {
+				if t.Name == name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return apperror.New(apperror.KindToolNotFound, "tool %q not found on this server", name)
+			}
+
+			result, err := c.CallTool(ctx, name, toolArguments)
+			if err != nil {
+				return err
+			}
+			if rerr := output.ToolResult(cmd.OutOrStdout(), f, result); rerr != nil {
+				return rerr
+			}
+			if result.IsError {
+				return apperror.New(apperror.KindToolError, "tool %q reported an error", name)
+			}
+			return nil
+		},
+	}
+	addServerFlags(cmd, &sf)
+	cmd.Flags().StringVar(&jsonStr, "json", "", "arguments as a JSON object")
+	cmd.Flags().StringVar(&jsonFile, "json-file", "", "arguments from a JSON file (`-` for stdin)")
+	cmd.Flags().StringArrayVar(&argKVs, "arg", nil, "argument as KEY=VALUE (repeatable)")
 	return cmd
 }

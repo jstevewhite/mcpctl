@@ -89,3 +89,44 @@ func TestE2EToolsListJSONCleanStdout(t *testing.T) {
 	}
 	_ = stderr
 }
+
+func TestE2EToolsCallEcho(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	stdout, _, code := run(t, mcpctl, "tools", "call", "echo", "--json", `{"message":"hello"}`, "--stdio", "--", server)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "hello") {
+		t.Fatalf("expected echoed text:\n%s", stdout)
+	}
+}
+
+func TestE2EToolsCallArgFlags(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	stdout, _, code := run(t, mcpctl, "tools", "call", "add", "--arg", "a=2", "--arg", "b=3", "--stdio", "--", server)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "5") {
+		t.Fatalf("expected sum 5:\n%s", stdout)
+	}
+}
+
+func TestE2EToolsCallIsErrorExit9(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	stdout, _, code := run(t, mcpctl, "tools", "call", "boom", "--stdio", "--", server)
+	if code != 9 {
+		t.Fatalf("exit = %d, want 9 (tool isError); out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "tool failed") {
+		t.Fatalf("expected error content rendered:\n%s", stdout)
+	}
+}
+
+func TestE2EToolsCallNotFoundExit7(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	_, _, code := run(t, mcpctl, "tools", "call", "nope", "--json", "{}", "--stdio", "--", server)
+	if code != 7 {
+		t.Fatalf("exit = %d, want 7", code)
+	}
+}
