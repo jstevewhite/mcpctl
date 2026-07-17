@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"mcpctl/internal/apperror"
 )
 
 // newHTTPTestServer returns an httptest.Server running an MCP server with an
@@ -28,6 +30,98 @@ func newHTTPTestServer(t *testing.T, wrap func(http.Handler) http.Handler) *http
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// statusWrap returns a wrap hook that responds to every request with the given
+// status (before the MCP handler runs).
+func statusWrap(status int) func(http.Handler) http.Handler {
+	return func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+		})
+	}
+}
+
+func TestHTTP401IsAuthError(t *testing.T) {
+	srv := newHTTPTestServer(t, statusWrap(http.StatusUnauthorized))
+	_, err := DialHTTP(context.Background(), HTTPSpec{URL: srv.URL, Header: http.Header{}})
+	if err == nil {
+		t.Fatal("expected an auth error")
+	}
+	if code := apperror.ExitCode(err); code != 4 {
+		t.Fatalf("exit code = %d, want 4 (auth)", code)
+	}
+}
+
+func TestHTTP403IsAuthError(t *testing.T) {
+	srv := newHTTPTestServer(t, statusWrap(http.StatusForbidden))
+	_, err := DialHTTP(context.Background(), HTTPSpec{URL: srv.URL, Header: http.Header{}})
+	if code := apperror.ExitCode(err); code != 4 {
+		t.Fatalf("exit code = %d, want 4 (auth); err=%v", code, err)
+	}
+}
+
+func TestHTTP500IsConnectionError(t *testing.T) {
+	srv := newHTTPTestServer(t, statusWrap(http.StatusInternalServerError))
+	_, err := DialHTTP(context.Background(), HTTPSpec{URL: srv.URL, Header: http.Header{}})
+	if code := apperror.ExitCode(err); code != 5 {
+		t.Fatalf("exit code = %d, want 5 (connection); err=%v", code, err)
+	}
+}
+
+func TestHTTPHeadersReachServer(t *testing.T) {
+	var gotAuth, gotLang string
+	srv := newHTTPTestServer(t, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if gotAuth == "" {
+				gotAuth = r.Header.Get("Authorization")
+				gotLang = r.Header.Get("Accept-Language")
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+	hdr := http.Header{}
+	hdr.Set("Authorization", "Bearer tok")
+	hdr.Set("Accept-Language", "en-US")
+	c, err := DialHTTP(context.Background(), HTTPSpec{URL: srv.URL, Header: hdr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+	if gotAuth != "Bearer tok" || gotLang != "en-US" {
+		t.Fatalf("headers not received: auth=%q lang=%q", gotAuth, gotLang)
+	}
+}
+
+func TestHTTPRedirectDoesNotForwardCredentials(t *testing.T) {
+	// Target server records whether any credential header arrived.
+	var leakedAuth, leakedKey string
+	target := newHTTPTestServer(t, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if leakedAuth == "" && leakedKey == "" {
+				leakedAuth = r.Header.Get("Authorization")
+				leakedKey = r.Header.Get("X-Api-Key")
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+	// Redirector server (different origin) 307-redirects everything to target.
+	redir := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(redir.Close)
+
+	hdr := http.Header{}
+	hdr.Set("Authorization", "Bearer tok")
+	hdr.Set("X-Api-Key", "secret")
+	c, err := DialHTTP(context.Background(), HTTPSpec{URL: redir.URL, Header: hdr})
+	if err != nil {
+		t.Fatalf("DialHTTP through redirect: %v", err)
+	}
+	c.Close()
+	if leakedAuth != "" || leakedKey != "" {
+		t.Fatalf("credentials leaked across redirect: auth=%q key=%q", leakedAuth, leakedKey)
+	}
 }
 
 func TestHTTPDialListCall(t *testing.T) {
