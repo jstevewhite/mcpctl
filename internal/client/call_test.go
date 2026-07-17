@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"mcpctl/internal/apperror"
 )
 
 func TestCallToolEchoText(t *testing.T) {
@@ -56,6 +58,9 @@ func TestCallToolUnknownIsGoError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a Go error calling an unknown tool")
 	}
+	if code := apperror.ExitCode(err); code != 6 {
+		t.Fatalf("unknown-tool exit code = %d, want 6", code)
+	}
 }
 
 func TestCallToolContextCancel(t *testing.T) {
@@ -68,6 +73,9 @@ func TestCallToolContextCancel(t *testing.T) {
 	_, err := c.CallTool(cctx, "slow", map[string]any{"seconds": 5})
 	if err == nil {
 		t.Fatal("expected a cancellation error")
+	}
+	if code := apperror.ExitCode(err); code != 10 {
+		t.Fatalf("timeout exit code = %d, want 10", code)
 	}
 	if time.Since(start) > 2*time.Second {
 		t.Fatalf("cancellation took too long: %v", time.Since(start))

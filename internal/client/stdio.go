@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"time"
@@ -37,7 +38,7 @@ func DialStdio(ctx context.Context, spec StdioSpec) (Client, error) {
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		process.KillGroup(cmd) // Connect may have started the child before failing.
-		return nil, apperror.Wrap(apperror.KindConnection, err, "connect to stdio server %q", spec.Command)
+		return nil, classifyErr(err, apperror.KindConnection, "connect to stdio server %q", spec.Command)
 	}
 
 	init := session.InitializeResult()
@@ -52,6 +53,20 @@ func DialStdio(ctx context.Context, spec StdioSpec) (Client, error) {
 		},
 	}
 	return c, nil
+}
+
+// classifyErr maps an SDK call/connect error to an application error. Context
+// cancellation and deadline are mapped to the interrupt/timeout kinds (so they
+// reach exit codes 130/10); everything else uses defaultKind.
+func classifyErr(err error, defaultKind apperror.Kind, format string, args ...any) error {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return apperror.Wrap(apperror.KindInterrupted, err, format, args...)
+	case errors.Is(err, context.DeadlineExceeded):
+		return apperror.Wrap(apperror.KindTimeout, err, format, args...)
+	default:
+		return apperror.Wrap(defaultKind, err, format, args...)
+	}
 }
 
 // mergedEnv returns the inherited environment plus the configured overrides.
@@ -72,7 +87,7 @@ func (c *stdioClient) ServerInfo() ServerInfo { return c.info }
 func (c *stdioClient) ListTools(ctx context.Context, cursor string) (ToolPage, error) {
 	res, err := c.session.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
 	if err != nil {
-		return ToolPage{}, apperror.Wrap(apperror.KindProtocol, err, "list tools")
+		return ToolPage{}, classifyErr(err, apperror.KindProtocol, "list tools")
 	}
 	page := ToolPage{NextCursor: res.NextCursor}
 	for _, t := range res.Tools {
@@ -113,13 +128,16 @@ func (c *stdioClient) ListAllTools(ctx context.Context, maxPages int) ([]ToolInf
 func (c *stdioClient) CallTool(ctx context.Context, name string, arguments map[string]any) (ToolResult, error) {
 	res, err := c.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
 	if err != nil {
-		return ToolResult{}, apperror.Wrap(apperror.KindProtocol, err, "call tool %q", name)
+		return ToolResult{}, classifyErr(err, apperror.KindProtocol, "call tool %q", name)
 	}
 	return toToolResult(res), nil
 }
 
 // Close gracefully closes the session (the SDK terminates the direct child)
-// and then sweeps the process group to reap any orphaned descendants.
+// and then sweeps the process group to reap any orphaned descendants. Close
+// may return a non-nil error (e.g. the child's "signal: killed" when it
+// ignores graceful shutdown and has to be force-terminated); callers should
+// not treat a non-nil return from Close as a command failure.
 func (c *stdioClient) Close() error {
 	err := c.session.Close()
 	process.KillGroup(c.cmd)
