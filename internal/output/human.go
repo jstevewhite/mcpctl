@@ -25,17 +25,17 @@ func toolListHuman(w io.Writer, tools []client.ToolInfo) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "NAME\tDESCRIPTION")
 	for _, t := range tools {
-		fmt.Fprintf(tw, "%s\t%s\n", t.Name, truncate(t.Description, descWidth))
+		fmt.Fprintf(tw, "%s\t%s\n", sanitize(t.Name), truncate(sanitize(t.Description), descWidth))
 	}
 	return tw.Flush()
 }
 
 func toolDescribeHuman(w io.Writer, t client.ToolInfo) error {
-	fmt.Fprintf(w, "Name:        %s\n", t.Name)
+	fmt.Fprintf(w, "Name:        %s\n", sanitize(t.Name))
 	if t.Title != "" {
-		fmt.Fprintf(w, "Title:       %s\n", t.Title)
+		fmt.Fprintf(w, "Title:       %s\n", sanitize(t.Title))
 	}
-	fmt.Fprintf(w, "Description: %s\n", t.Description)
+	fmt.Fprintf(w, "Description: %s\n", sanitize(t.Description))
 	if t.InputSchema != nil {
 		fmt.Fprintf(w, "Input schema:\n%s\n", indentJSON(t.InputSchema))
 	}
@@ -55,7 +55,7 @@ func toolResultHuman(w io.Writer, r client.ToolResult) error {
 	for _, c := range r.Content {
 		switch c.Kind {
 		case client.KindText:
-			fmt.Fprintln(w, c.Text)
+			fmt.Fprintln(w, sanitize(c.Text))
 		case client.KindImage, client.KindAudio:
 			fmt.Fprintf(w, "[%s content, %s, %d bytes]\n", c.Kind, c.MIMEType, len(c.Data))
 		case client.KindResource:
