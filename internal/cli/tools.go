@@ -67,6 +67,8 @@ func dial(ctx context.Context, cmd *cobra.Command, g *GlobalFlags, sf ServerFlag
 		c, err = client.DialStdio(ctx, *target.Stdio)
 	case target.HTTP != nil:
 		c, err = client.DialHTTP(ctx, *target.HTTP)
+	default:
+		return nil, nil, apperror.Internal("no transport resolved from target")
 	}
 	if err != nil {
 		return nil, nil, err

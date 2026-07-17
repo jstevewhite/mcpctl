@@ -69,6 +69,21 @@ func TestHTTP500IsConnectionError(t *testing.T) {
 	}
 }
 
+func TestHTTPUnreachableIsConnectionError(t *testing.T) {
+	// Start then immediately close a server so nothing is listening on its port.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	closedURL := srv.URL
+	srv.Close()
+
+	_, err := DialHTTP(context.Background(), HTTPSpec{URL: closedURL, Header: http.Header{}})
+	if err == nil {
+		t.Fatal("expected a connection error dialing a closed endpoint")
+	}
+	if code := apperror.ExitCode(err); code != 5 {
+		t.Fatalf("exit code = %d, want 5 (connection); err=%v", code, err)
+	}
+}
+
 func TestHTTPHeadersReachServer(t *testing.T) {
 	var gotAuth, gotLang string
 	srv := newHTTPTestServer(t, func(next http.Handler) http.Handler {

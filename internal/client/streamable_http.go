@@ -116,7 +116,7 @@ func DialHTTP(ctx context.Context, spec HTTPSpec) (Client, error) {
 	session, err := cl.Connect(ctx, transport, nil)
 	if err != nil {
 		httpc.CloseIdleConnections()
-		return nil, wrap(err, "connect to "+spec.URL)
+		return nil, wrap(err, "connect to "+endpoint.Redacted())
 	}
 	init := session.InitializeResult()
 	return &httpClient{
@@ -161,7 +161,10 @@ func httpWrapErr(rec *statusRecorder) func(err error, op string) error {
 		switch code := rec.last(); {
 		case code == http.StatusUnauthorized || code == http.StatusForbidden:
 			return apperror.Wrap(apperror.KindAuth, err, "%s", op)
-		case code >= 400:
+		case code == 0 || code >= 400:
+			// code==0: no HTTP response was received (server down/refused/DNS/TLS
+			// failure) — a transport error, consistent with the stdio path.
+			// code>=400: a rejecting response. Both are connection/transport failures.
 			return apperror.Wrap(apperror.KindConnection, err, "%s", op)
 		}
 		if errors.Is(err, mcp.ErrSessionMissing) {
