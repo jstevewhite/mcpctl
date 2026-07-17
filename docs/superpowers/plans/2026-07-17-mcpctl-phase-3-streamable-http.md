@@ -1146,6 +1146,20 @@ Phase 3 is complete when:
 
 ---
 
+## Post-review hardening
+
+After the Phase 3 whole-branch review (ready-with-fixes), applied on top of Tasks 1–6 (commits `d2eeab5`, `549709b`):
+
+- **Unreachable HTTP endpoint → exit 5** (`internal/client/streamable_http.go`): `httpWrapErr` maps a no-HTTP-response failure (server down / refused / DNS / TLS) to `KindConnection` (5) instead of falling through to `KindProtocol` (6), restoring the spec's connection→5 contract and stdio/HTTP consistency. A regression test dials a closed port and asserts exit 5.
+- **URL userinfo redaction**: the connect-error message uses `endpoint.Redacted()`, so a `--url https://user:pass@host/` password never appears in output (§15).
+- **`dial` default guard** (`internal/cli/tools.go`): the stdio/http dispatch switch returns an internal error instead of nil-panicking if the `resolveTarget` invariant were broken.
+- **Canonical-key header injection** (`streamable_http.go`): same-origin injection uses `Header.Del`/`Add` rather than a raw map write.
+- **Test**: `--url` mutual-exclusion combos.
+
+Deferred (fast-follow / Phase 4): `originOf` default-port normalization (fails safe today); direct unit tests for `httpWrapErr`'s context/404 branches; wiring `auth.IsSensitive`/`RedactValue` into logging.
+
+---
+
 ## After Phase 3
 
 - Whole-branch review of `v3-streamable-http` on the strongest model; triage/fix; merge to `main`.
