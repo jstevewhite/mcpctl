@@ -10,13 +10,10 @@ import (
 )
 
 func TestParseFormat(t *testing.T) {
-	for _, ok := range []string{"human", "json"} {
+	for _, ok := range []string{"human", "json", "jsonl", "yaml"} {
 		if _, err := ParseFormat(ok); err != nil {
 			t.Errorf("ParseFormat(%q) errored: %v", ok, err)
 		}
-	}
-	if _, err := ParseFormat("yaml"); err == nil {
-		t.Error("yaml should be unsupported in Phase 2")
 	}
 	if _, err := ParseFormat("bogus"); err == nil {
 		t.Error("bogus format should error")
@@ -77,8 +74,45 @@ func TestToolResultJSONFaithful(t *testing.T) {
 	if !json.Valid(buf.Bytes()) {
 		t.Fatalf("invalid JSON: %s", buf.String())
 	}
-	if !strings.Contains(buf.String(), `"isError":true`) {
+	if !strings.Contains(buf.String(), `"isError": true`) {
 		t.Fatalf("isError not preserved: %s", buf.String())
+	}
+}
+
+func TestToolListYAML(t *testing.T) {
+	var buf bytes.Buffer
+	if err := ToolList(&buf, FormatYAML, "local", []client.ToolInfo{{Name: "echo", Description: "d"}}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "server: local") || !strings.Contains(out, "name: echo") {
+		t.Fatalf("unexpected yaml:\n%s", out)
+	}
+}
+
+func TestToolListJSONL(t *testing.T) {
+	var buf bytes.Buffer
+	if err := ToolList(&buf, FormatJSONL, "local", []client.ToolInfo{{Name: "a"}, {Name: "b"}}); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("jsonl should be one tool per line, got %d lines:\n%s", len(lines), buf.String())
+	}
+	for _, ln := range lines {
+		if !json.Valid([]byte(ln)) {
+			t.Fatalf("jsonl line is not valid JSON: %q", ln)
+		}
+	}
+}
+
+func TestToolResultYAML(t *testing.T) {
+	var buf bytes.Buffer
+	if err := ToolResult(&buf, FormatYAML, client.ToolResult{IsError: true, Content: []client.ContentBlock{{Kind: client.KindText, Text: "boom"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "isError: true") {
+		t.Fatalf("yaml missing isError:\n%s", buf.String())
 	}
 }
 

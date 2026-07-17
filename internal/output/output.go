@@ -18,23 +18,28 @@ const (
 	FormatYAML  Format = "yaml"
 )
 
-// ParseFormat validates a format name. jsonl and yaml are recognized but not
-// yet implemented (Phase 4).
+// ParseFormat validates a format name.
 func ParseFormat(s string) (Format, error) {
 	switch Format(s) {
-	case FormatHuman, FormatJSON:
+	case FormatHuman, FormatJSON, FormatJSONL, FormatYAML:
 		return Format(s), nil
-	case FormatJSONL, FormatYAML:
-		return "", apperror.Usage("output format %q is not supported yet (arrives in a later version)", s)
 	default:
-		return "", apperror.Usage("unknown output format %q (want human or json)", s)
+		return "", apperror.Usage("unknown output format %q (want human, json, jsonl, or yaml)", s)
 	}
 }
 
 func ToolList(w io.Writer, f Format, server string, tools []client.ToolInfo) error {
 	switch f {
 	case FormatJSON:
-		return toolListJSON(w, server, tools)
+		return writeJSONIndent(w, toolListDoc(server, tools))
+	case FormatYAML:
+		return writeYAML(w, toolListDoc(server, tools))
+	case FormatJSONL:
+		items := make([]any, len(tools))
+		for i := range tools {
+			items[i] = tools[i]
+		}
+		return writeJSONLines(w, items)
 	default:
 		return toolListHuman(w, tools)
 	}
@@ -43,7 +48,11 @@ func ToolList(w io.Writer, f Format, server string, tools []client.ToolInfo) err
 func ToolDescribe(w io.Writer, f Format, tool client.ToolInfo) error {
 	switch f {
 	case FormatJSON:
-		return writeJSON(w, tool)
+		return writeJSONIndent(w, tool)
+	case FormatYAML:
+		return writeYAML(w, tool)
+	case FormatJSONL:
+		return writeJSONCompact(w, tool)
 	default:
 		return toolDescribeHuman(w, tool)
 	}
@@ -52,7 +61,11 @@ func ToolDescribe(w io.Writer, f Format, tool client.ToolInfo) error {
 func ToolResult(w io.Writer, f Format, r client.ToolResult) error {
 	switch f {
 	case FormatJSON:
-		return writeJSON(w, r)
+		return writeJSONIndent(w, r)
+	case FormatYAML:
+		return writeYAML(w, r)
+	case FormatJSONL:
+		return writeJSONCompact(w, r)
 	default:
 		return toolResultHuman(w, r)
 	}
