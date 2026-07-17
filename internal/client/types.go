@@ -2,6 +2,8 @@
 // and the official Go MCP SDK. Only this package imports the SDK.
 package client
 
+import "net/http"
+
 // ToolInfo is an SDK-free description of a tool.
 type ToolInfo struct {
 	Name         string           `json:"name"`
@@ -72,4 +74,11 @@ type StdioSpec struct {
 	Args    []string
 	CWD     string            // working directory; "" = inherit
 	Env     map[string]string // additions/overrides to the inherited environment
+}
+
+// HTTPSpec describes a Streamable HTTP server. Header holds the already-resolved
+// request headers (env/bearer resolved by the caller); the URL is absolute.
+type HTTPSpec struct {
+	URL    string
+	Header http.Header
 }
