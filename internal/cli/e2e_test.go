@@ -211,3 +211,16 @@ func TestE2EToolsListHTTPMissingBearerEnvExit4(t *testing.T) {
 		t.Fatalf("exit = %d, want 4 (auth: missing env var before connecting)", code)
 	}
 }
+
+func TestE2EToolsListHTTPViaConfigServer(t *testing.T) {
+	srv := newCLIHTTPServer(t, nil)
+	mcpctl, _ := buildBinaries(t)
+	cfg := writeCfg(t, "version = 1\n[servers.remote]\ntransport = \"streamable-http\"\nurl = \""+srv.URL+"\"\n")
+	stdout, _, code := run(t, mcpctl, "--config", cfg, "tools", "list", "--server", "remote")
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "echo") {
+		t.Fatalf("expected echo tool via config --server:\n%s", stdout)
+	}
+}
