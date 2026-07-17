@@ -24,5 +24,10 @@ func Save(path string, cfg *Config) error {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return apperror.Wrap(apperror.KindConfig, err, "write config %s", path)
 	}
+	// os.WriteFile only sets perms when creating a file; enforce 0600 so a
+	// pre-existing looser-perm config is tightened (literal secrets stay owner-only).
+	if err := os.Chmod(path, 0o600); err != nil {
+		return apperror.Wrap(apperror.KindConfig, err, "restrict config permissions %s", path)
+	}
 	return nil
 }

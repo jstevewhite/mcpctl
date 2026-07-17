@@ -52,3 +52,20 @@ func TestSaveWritesOwnerOnly(t *testing.T) {
 		t.Fatalf("perms = %o, want 600", perm)
 	}
 }
+
+func TestSaveTightensExistingFilePerms(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("version = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(path, &Config{Version: 1}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("perms after overwriting a 0644 file = %o, want 600", perm)
+	}
+}
