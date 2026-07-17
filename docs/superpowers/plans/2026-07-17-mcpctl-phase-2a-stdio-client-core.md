@@ -1125,10 +1125,21 @@ Phase 2A is complete when:
 
 ---
 
+## Post-review hardening
+
+After the 2A whole-branch review, applied on top of Tasks 1–7 (commits `1973d22`, `d84f5b6`):
+
+- **Context-error classification** (`internal/client/stdio.go`): `DialStdio`/`ListTools`/`CallTool` route SDK errors through `classifyErr`, mapping `context.Canceled` → `KindInterrupted` (exit 130) and `context.DeadlineExceeded` → `KindTimeout` (exit 10) before the generic connection/protocol wrap. Without this, `apperror.ExitCode` matched the outer wrapper first and a timeout exited 6 instead of 10 (spec §14). Tests assert timeout→10 and unknown-tool→6.
+- **`Close()` contract** documented: it may return the child's `signal: killed` error on forced shutdown; callers must not treat that as command failure.
+- **Test hygiene**: fixed the `TestMain` temp-dir leak (`os.Exit` bypassed the `defer`); tagged the Unix-oriented integration tests `//go:build !windows`; covered the audio/embedded-resource/resource-link `toContentBlock` branches, `OutputSchema` preservation, and exact image bytes.
+
+---
+
 ## Roadmap: Plan 2B (tools commands)
 
 Written after 2A lands. Builds the user-facing CLI on top of `internal/client`:
 
+- **Boundary completeness (from the 2A review — do this first):** extend `internal/client` boundary types so `describe`/output can satisfy §10.2/§11.1 — add tool annotations (`ToolInfo.Annotations`), tool + result metadata (`ToolInfo.Meta`, `ToolResult.Meta`), and resource URI/MIME/blob on `ContentBlock` — plus the conversions in `convert.go`. Additive and localized to `internal/client`. Confirm SDK field names (`mcp.ToolAnnotations`, `mcp.ResourceContents`, `mcp.ResourceLink`) via `go doc`. Also add the two deferred live tests: repeated-cursor detection and the connect-failure cleanup path, via a fake session/looping double.
 - `internal/arguments` — `--json` / `--json-file` / repeated `--arg KEY=VALUE` (mutual exclusion; JSON-object enforcement; `--arg` JSON-or-string parsing with the documented numeric footguns).
 - `internal/cli/flags.go` — server selection (`--server` vs. `--stdio` vs. `--url`, mutually exclusive) and the ephemeral-stdio `--` grammar (§4.3.1); build a `client.StdioSpec` from a named `config.ServerConfig` or ephemeral flags. `--url` returns an unsupported-transport error until Phase 3.
 - `internal/output` — `human` and `json` rendering for tool lists, descriptions, and call results, preserving the full MCP result (§11.1); `--protocol-version` returns the unsupported-option error (§7).
