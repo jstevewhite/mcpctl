@@ -19,3 +19,10 @@ func TestSanitizeStripsControlChars(t *testing.T) {
 		t.Fatalf("newline/tab should be preserved: %q", got)
 	}
 }
+
+func TestTableCellCollapsesRowInjection(t *testing.T) {
+	got := tableCell("evil\nNAME\tDESC")
+	if strings.Contains(got, "\n") || strings.Contains(got, "\t") {
+		t.Fatalf("table cell must not contain newlines/tabs: %q", got)
+	}
+}

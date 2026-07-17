@@ -21,11 +21,21 @@ func truncate(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
+// tableCell makes an untrusted string safe for a single tabwriter cell:
+// sanitize control chars, then collapse newlines/tabs to spaces so they can't
+// forge extra rows or columns.
+func tableCell(s string) string {
+	s = sanitize(s)
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\t", " ")
+	return s
+}
+
 func toolListHuman(w io.Writer, tools []client.ToolInfo) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "NAME\tDESCRIPTION")
 	for _, t := range tools {
-		fmt.Fprintf(tw, "%s\t%s\n", sanitize(t.Name), truncate(sanitize(t.Description), descWidth))
+		fmt.Fprintf(tw, "%s\t%s\n", tableCell(t.Name), truncate(tableCell(t.Description), descWidth))
 	}
 	return tw.Flush()
 }
@@ -57,9 +67,9 @@ func toolResultHuman(w io.Writer, r client.ToolResult) error {
 		case client.KindText:
 			fmt.Fprintln(w, sanitize(c.Text))
 		case client.KindImage, client.KindAudio:
-			fmt.Fprintf(w, "[%s content, %s, %d bytes]\n", c.Kind, c.MIMEType, len(c.Data))
+			fmt.Fprintf(w, "[%s content, %s, %d bytes]\n", c.Kind, sanitize(c.MIMEType), len(c.Data))
 		case client.KindResource:
-			fmt.Fprintf(w, "[resource %s %s]\n", c.URI, c.MIMEType)
+			fmt.Fprintf(w, "[resource %s %s]\n", sanitize(c.URI), sanitize(c.MIMEType))
 		default:
 			fmt.Fprintf(w, "[%s content]\n", c.Kind)
 		}
