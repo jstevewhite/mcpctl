@@ -1465,6 +1465,21 @@ Phase 2B is complete when:
 
 ---
 
+## Post-review hardening
+
+After the 2B whole-branch review (ready-with-fixes), applied on top of Tasks 1–7 (commits `65c2784`, `4ea47cc`, `4e327f0`):
+
+- **Timeout bounds validation** (`internal/cli/root.go`): `--timeout`/`--connect-timeout` are validated to `[1s, 24h]` in `PersistentPreRunE`; out-of-range (incl. `0`/negative) returns a usage error (exit 2) per spec §14, instead of a born-expired context surfacing as a timeout (exit 10).
+- **Honest `--connect-timeout` help**: documented as currently folded into `--timeout` for stdio; separate two-phase enforcement is deferred to Phase 3 (avoids the session-lifetime risk of canceling a distinct connect context — the reason one command context is used).
+- **Strict JSON argument parsing** (`internal/arguments`): `decodeObject` uses `json.Unmarshal`, rejecting trailing garbage (`{"a":1}x`).
+- **Rune-safe truncation** (`internal/output/human.go`): `truncate` slices by runes, not bytes.
+- **`findTool` dedup** (`internal/cli/tools.go`): shared by `describe` and `call`.
+- **Tests**: `--server` config resolution (found / not-found / non-stdio), `ToolDescribe` + isError/resource human rendering, and the zero-timeout usage-error path.
+
+Deferred: two-phase connect-timeout enforcement (Phase 3); benign `--server`-with-after-dash-args; usage-validation-after-dial (a defensible tradeoff of the `--` grammar).
+
+---
+
 ## After 2B: finish Phase 2
 
 - Whole-branch review of the full `v2-stdio-mvp` branch (2A + 2B) on the strongest model.
