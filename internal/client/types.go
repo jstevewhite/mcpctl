@@ -4,11 +4,22 @@ package client
 
 // ToolInfo is an SDK-free description of a tool.
 type ToolInfo struct {
-	Name         string
-	Description  string
-	Title        string
-	InputSchema  any // JSON schema as decoded by the SDK (map[string]any) or nil
-	OutputSchema any
+	Name         string           `json:"name"`
+	Description  string           `json:"description,omitempty"`
+	Title        string           `json:"title,omitempty"`
+	InputSchema  any              `json:"inputSchema,omitempty"`
+	OutputSchema any              `json:"outputSchema,omitempty"`
+	Annotations  *ToolAnnotations `json:"annotations,omitempty"`
+	Meta         map[string]any   `json:"meta,omitempty"`
+}
+
+// ToolAnnotations mirrors the SDK's tool hints, SDK-free.
+type ToolAnnotations struct {
+	Title           string `json:"title,omitempty"`
+	ReadOnlyHint    bool   `json:"readOnlyHint,omitempty"`
+	DestructiveHint *bool  `json:"destructiveHint,omitempty"`
+	IdempotentHint  bool   `json:"idempotentHint,omitempty"`
+	OpenWorldHint   *bool  `json:"openWorldHint,omitempty"`
 }
 
 // ContentKind classifies a content block in a tool result.
@@ -24,17 +35,20 @@ const (
 
 // ContentBlock is an SDK-free representation of one content item.
 type ContentBlock struct {
-	Kind     ContentKind
-	Text     string // KindText
-	MIMEType string // KindImage/KindAudio
-	Data     []byte // KindImage/KindAudio (raw bytes)
+	Kind     ContentKind `json:"kind"`
+	Text     string      `json:"text,omitempty"`     // KindText / embedded resource text
+	MIMEType string      `json:"mimeType,omitempty"` // image/audio/resource
+	Data     []byte      `json:"data,omitempty"`     // image/audio bytes / resource blob
+	URI      string      `json:"uri,omitempty"`      // KindResource
+	Name     string      `json:"name,omitempty"`     // resource link name
 }
 
 // ToolResult is an SDK-free representation of a tools/call result.
 type ToolResult struct {
-	Content    []ContentBlock
-	Structured any // structuredContent, or nil
-	IsError    bool
+	Content    []ContentBlock `json:"content"`
+	Structured any            `json:"structuredContent,omitempty"`
+	IsError    bool           `json:"isError,omitempty"`
+	Meta       map[string]any `json:"meta,omitempty"`
 }
 
 // ServerInfo captures the initialized server's identity and capabilities.

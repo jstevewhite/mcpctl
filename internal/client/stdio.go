@@ -100,6 +100,14 @@ func (c *stdioClient) ListTools(ctx context.Context, cursor string) (ToolPage, e
 // terminates with a protocol error if a cursor repeats (a misbehaving server
 // that loops) rather than paginating forever.
 func (c *stdioClient) ListAllTools(ctx context.Context, maxPages int) ([]ToolInfo, error) {
+	return collectAllTools(maxPages, func(cursor string) (ToolPage, error) {
+		return c.ListTools(ctx, cursor)
+	})
+}
+
+// collectAllTools follows pagination via fetch, capping at maxPages and
+// erroring on a repeated cursor (a looping server).
+func collectAllTools(maxPages int, fetch func(cursor string) (ToolPage, error)) ([]ToolInfo, error) {
 	var all []ToolInfo
 	seen := map[string]bool{}
 	cursor := ""
@@ -108,7 +116,7 @@ func (c *stdioClient) ListAllTools(ctx context.Context, maxPages int) ([]ToolInf
 			return nil, apperror.New(apperror.KindProtocol,
 				"tools/list exceeded the page cap (%d pages); server may be paginating without end", maxPages)
 		}
-		p, err := c.ListTools(ctx, cursor)
+		p, err := fetch(cursor)
 		if err != nil {
 			return nil, err
 		}

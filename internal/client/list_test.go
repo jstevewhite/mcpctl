@@ -55,3 +55,26 @@ func TestListAllToolsPageCap(t *testing.T) {
 		t.Fatal("expected a page-cap error with maxPages=1")
 	}
 }
+
+func TestCollectAllToolsRepeatedCursor(t *testing.T) {
+	calls := 0
+	_, err := collectAllTools(1000, func(cursor string) (ToolPage, error) {
+		calls++
+		return ToolPage{Tools: []ToolInfo{{Name: "x"}}, NextCursor: "same"}, nil
+	})
+	if err == nil {
+		t.Fatal("expected a repeated-cursor error")
+	}
+	if calls > 3 {
+		t.Fatalf("should stop quickly on a repeated cursor, made %d calls", calls)
+	}
+}
+
+func TestCollectAllToolsPageCap(t *testing.T) {
+	_, err := collectAllTools(2, func(cursor string) (ToolPage, error) {
+		return ToolPage{Tools: []ToolInfo{{Name: "x"}}, NextCursor: "next-" + cursor}, nil
+	})
+	if err == nil {
+		t.Fatal("expected a page-cap error")
+	}
+}

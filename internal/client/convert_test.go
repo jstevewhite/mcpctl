@@ -55,6 +55,37 @@ func TestToToolResult(t *testing.T) {
 	}
 }
 
+func TestToToolInfoAnnotationsAndMeta(t *testing.T) {
+	ro := true
+	got := toToolInfo(&mcp.Tool{
+		Name:        "t",
+		Annotations: &mcp.ToolAnnotations{Title: "T", ReadOnlyHint: true, DestructiveHint: &ro},
+		Meta:        mcp.Meta{"k": "v"},
+	})
+	if got.Annotations == nil || got.Annotations.Title != "T" || !got.Annotations.ReadOnlyHint {
+		t.Fatalf("annotations not converted: %+v", got.Annotations)
+	}
+	if got.Annotations.DestructiveHint == nil || !*got.Annotations.DestructiveHint {
+		t.Fatalf("destructiveHint pointer not preserved")
+	}
+	if got.Meta["k"] != "v" {
+		t.Fatalf("meta not converted: %+v", got.Meta)
+	}
+}
+
+func TestToContentBlockResource(t *testing.T) {
+	emb := toContentBlock(&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{
+		URI: "file:///x", MIMEType: "text/plain", Text: "hi", Blob: []byte{1},
+	}})
+	if emb.Kind != KindResource || emb.URI != "file:///x" || emb.Text != "hi" || len(emb.Data) != 1 {
+		t.Fatalf("embedded resource not converted: %+v", emb)
+	}
+	link := toContentBlock(&mcp.ResourceLink{URI: "https://y", Name: "y", MIMEType: "text/html"})
+	if link.Kind != KindResource || link.URI != "https://y" || link.Name != "y" {
+		t.Fatalf("resource link not converted: %+v", link)
+	}
+}
+
 func TestToContentBlockKinds(t *testing.T) {
 	audio := toContentBlock(&mcp.AudioContent{MIMEType: "audio/wav", Data: []byte{9}})
 	if audio.Kind != KindAudio || audio.MIMEType != "audio/wav" || len(audio.Data) != 1 {
