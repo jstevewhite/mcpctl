@@ -78,7 +78,7 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 	f.StringVar(&g.Config, "config", "", "path to config file")
 	f.StringVar(&g.Output, "output", "human", "output format: human|json|jsonl|yaml")
 	f.DurationVar(&g.Timeout, "timeout", 30*time.Second, "overall command timeout")
-	f.DurationVar(&g.ConnectTimeout, "connect-timeout", 15*time.Second, "connection/initialization timeout (currently applied as part of --timeout for stdio; separate enforcement arrives with HTTP)")
+	f.DurationVar(&g.ConnectTimeout, "connect-timeout", 15*time.Second, "connection/initialization timeout (currently applied as part of --timeout)")
 	f.StringVar(&g.LogLevel, "log-level", "warn", "log level: debug|info|warn|error")
 	f.BoolVar(&g.NoColor, "no-color", false, "disable colored output")
 	f.BoolVar(&g.NoValidate, "no-validate", false, "skip local argument validation")

@@ -36,8 +36,11 @@ func newToolsCmd(g *GlobalFlags) *cobra.Command {
 // addServerFlags binds the shared server-selection flags to a tools subcommand.
 func addServerFlags(cmd *cobra.Command, sf *ServerFlags) {
 	cmd.Flags().StringVar(&sf.Server, "server", "", "named server from configuration")
-	cmd.Flags().StringVar(&sf.URL, "url", "", "ephemeral Streamable HTTP URL (not yet supported)")
+	cmd.Flags().StringVar(&sf.URL, "url", "", "ephemeral Streamable HTTP URL")
 	cmd.Flags().BoolVar(&sf.Stdio, "stdio", false, "ephemeral stdio server (command follows `--`)")
+	cmd.Flags().StringArrayVar(&sf.HeaderEnv, "header-env", nil, "HTTP header from an env var: NAME=ENVVAR (repeatable)")
+	cmd.Flags().StringArrayVar(&sf.HeaderLiteral, "header-literal", nil, "HTTP header literal (writes a secret to your shell history): NAME=VALUE")
+	cmd.Flags().StringVar(&sf.BearerEnv, "bearer-env", "", "bearer token from an env var (sets Authorization: Bearer)")
 }
 
 // dial resolves the target from flags/args and connects using ctx. A single
@@ -54,11 +57,17 @@ func dial(ctx context.Context, cmd *cobra.Command, g *GlobalFlags, sf ServerFlag
 	} else {
 		toolSide = args
 	}
-	spec, toolArgs, err := resolveTarget(sf, toolSide, afterDash, hasDash, g.Config)
+	target, toolArgs, err := resolveTarget(sf, toolSide, afterDash, hasDash, g.Config)
 	if err != nil {
 		return nil, nil, err
 	}
-	c, err := client.DialStdio(ctx, spec)
+	var c client.Client
+	switch {
+	case target.Stdio != nil:
+		c, err = client.DialStdio(ctx, *target.Stdio)
+	case target.HTTP != nil:
+		c, err = client.DialHTTP(ctx, *target.HTTP)
+	}
 	if err != nil {
 		return nil, nil, err
 	}

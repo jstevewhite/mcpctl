@@ -3,11 +3,16 @@
 package cli
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // buildBinaries builds the mcpctl binary and the stdio test server once.
@@ -128,5 +133,81 @@ func TestE2EToolsCallNotFoundExit7(t *testing.T) {
 	_, _, code := run(t, mcpctl, "tools", "call", "nope", "--json", "{}", "--stdio", "--", server)
 	if code != 7 {
 		t.Fatalf("exit = %d, want 7", code)
+	}
+}
+
+// newCLIHTTPServer returns an httptest.Server running a minimal MCP server
+// with an `echo` tool over Streamable HTTP, for exercising the real mcpctl
+// binary's --url path end-to-end. wrap, if non-nil, wraps the handler (e.g.
+// to enforce auth before the MCP handler runs).
+func newCLIHTTPServer(t *testing.T, wrap func(http.Handler) http.Handler) *httptest.Server {
+	t.Helper()
+	server := mcp.NewServer(&mcp.Implementation{Name: "cli-http-test-server", Version: "0.0.1"}, nil)
+	mcp.AddTool(server, &mcp.Tool{Name: "echo", Description: "echo"},
+		func(ctx context.Context, req *mcp.CallToolRequest, args struct {
+			Message string `json:"message"`
+		}) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: args.Message}}}, nil, nil
+		})
+	var h http.Handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+	if wrap != nil {
+		h = wrap(h)
+	}
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestE2EToolsListHTTP(t *testing.T) {
+	srv := newCLIHTTPServer(t, nil)
+	mcpctl, _ := buildBinaries(t)
+	stdout, _, code := run(t, mcpctl, "tools", "list", "--url", srv.URL)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "echo") {
+		t.Fatalf("expected echo tool over HTTP:\n%s", stdout)
+	}
+}
+
+func TestE2EToolsCallEchoHTTP(t *testing.T) {
+	srv := newCLIHTTPServer(t, nil)
+	mcpctl, _ := buildBinaries(t)
+	stdout, _, code := run(t, mcpctl, "tools", "call", "echo", "--json", `{"message":"hello-http"}`, "--url", srv.URL)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "hello-http") {
+		t.Fatalf("expected echoed text over HTTP:\n%s", stdout)
+	}
+}
+
+func TestE2EToolsListHTTPBearerAuth(t *testing.T) {
+	srv := newCLIHTTPServer(t, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer topsecret" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+	mcpctl, _ := buildBinaries(t)
+	t.Setenv("CLI_E2E_TOK", "topsecret")
+	stdout, _, code := run(t, mcpctl, "tools", "list", "--url", srv.URL, "--bearer-env", "CLI_E2E_TOK")
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "echo") {
+		t.Fatalf("expected echo tool over authenticated HTTP:\n%s", stdout)
+	}
+}
+
+func TestE2EToolsListHTTPMissingBearerEnvExit4(t *testing.T) {
+	srv := newCLIHTTPServer(t, nil)
+	mcpctl, _ := buildBinaries(t)
+	_, _, code := run(t, mcpctl, "tools", "list", "--url", srv.URL, "--bearer-env", "CLI_E2E_UNSET_TOK")
+	if code != 4 {
+		t.Fatalf("exit = %d, want 4 (auth: missing env var before connecting)", code)
 	}
 }
