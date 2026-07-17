@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"time"
@@ -13,10 +14,64 @@ import (
 	"mcpctl/internal/process"
 )
 
-type stdioClient struct {
-	session *mcp.ClientSession
-	cmd     *exec.Cmd
+// mcpSession holds a live MCP session and the transport-agnostic tool
+// operations. stdioClient and httpClient embed it and add their own Close.
+type mcpSession struct {
+	sess    *mcp.ClientSession
 	info    ServerInfo
+	wrapErr func(err error, op string) error
+}
+
+func (s *mcpSession) ServerInfo() ServerInfo { return s.info }
+
+func (s *mcpSession) ListTools(ctx context.Context, cursor string) (ToolPage, error) {
+	res, err := s.sess.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
+	if err != nil {
+		return ToolPage{}, s.wrapErr(err, "list tools")
+	}
+	page := ToolPage{NextCursor: res.NextCursor}
+	for _, t := range res.Tools {
+		page.Tools = append(page.Tools, toToolInfo(t))
+	}
+	return page, nil
+}
+
+// ListAllTools follows NextCursor to completion. It caps at maxPages and
+// terminates with a protocol error if a cursor repeats (a misbehaving server
+// that loops) rather than paginating forever.
+func (s *mcpSession) ListAllTools(ctx context.Context, maxPages int) ([]ToolInfo, error) {
+	return collectAllTools(maxPages, func(cursor string) (ToolPage, error) {
+		return s.ListTools(ctx, cursor)
+	})
+}
+
+func (s *mcpSession) CallTool(ctx context.Context, name string, arguments map[string]any) (ToolResult, error) {
+	res, err := s.sess.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
+	if err != nil {
+		return ToolResult{}, s.wrapErr(err, fmt.Sprintf("call tool %q", name))
+	}
+	return toToolResult(res), nil
+}
+
+// stdioClient is a session backed by a spawned child process.
+type stdioClient struct {
+	*mcpSession
+	cmd *exec.Cmd
+}
+
+// Close gracefully closes the session (the SDK terminates the direct child),
+// then sweeps the process group for orphaned descendants. It may return the
+// child's signal/exit error; callers must not treat that as command failure.
+func (c *stdioClient) Close() error {
+	err := c.sess.Close()
+	process.KillGroup(c.cmd)
+	return err
+}
+
+// stdioWrapErr classifies stdio session errors: context cancel/timeout map to
+// interrupt/timeout, everything else to a protocol error.
+func stdioWrapErr(err error, op string) error {
+	return classifyErr(err, apperror.KindProtocol, "%s", op)
 }
 
 // DialStdio launches the stdio server described by spec, performs the MCP
@@ -42,17 +97,19 @@ func DialStdio(ctx context.Context, spec StdioSpec) (Client, error) {
 	}
 
 	init := session.InitializeResult()
-	c := &stdioClient{
-		session: session,
-		cmd:     cmd,
-		info: ServerInfo{
-			Name:            init.ServerInfo.Name,
-			Version:         init.ServerInfo.Version,
-			ProtocolVersion: init.ProtocolVersion,
-			SupportsTools:   init.Capabilities.Tools != nil,
+	return &stdioClient{
+		mcpSession: &mcpSession{
+			sess: session,
+			info: ServerInfo{
+				Name:            init.ServerInfo.Name,
+				Version:         init.ServerInfo.Version,
+				ProtocolVersion: init.ProtocolVersion,
+				SupportsTools:   init.Capabilities.Tools != nil,
+			},
+			wrapErr: stdioWrapErr,
 		},
-	}
-	return c, nil
+		cmd: cmd,
+	}, nil
 }
 
 // classifyErr maps an SDK call/connect error to an application error. Context
@@ -82,29 +139,6 @@ func mergedEnv(overrides map[string]string) []string {
 	return env
 }
 
-func (c *stdioClient) ServerInfo() ServerInfo { return c.info }
-
-func (c *stdioClient) ListTools(ctx context.Context, cursor string) (ToolPage, error) {
-	res, err := c.session.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
-	if err != nil {
-		return ToolPage{}, classifyErr(err, apperror.KindProtocol, "list tools")
-	}
-	page := ToolPage{NextCursor: res.NextCursor}
-	for _, t := range res.Tools {
-		page.Tools = append(page.Tools, toToolInfo(t))
-	}
-	return page, nil
-}
-
-// ListAllTools follows NextCursor to completion. It caps at maxPages and
-// terminates with a protocol error if a cursor repeats (a misbehaving server
-// that loops) rather than paginating forever.
-func (c *stdioClient) ListAllTools(ctx context.Context, maxPages int) ([]ToolInfo, error) {
-	return collectAllTools(maxPages, func(cursor string) (ToolPage, error) {
-		return c.ListTools(ctx, cursor)
-	})
-}
-
 // collectAllTools follows pagination via fetch, capping at maxPages and
 // erroring on a repeated cursor (a looping server).
 func collectAllTools(maxPages int, fetch func(cursor string) (ToolPage, error)) ([]ToolInfo, error) {
@@ -131,23 +165,4 @@ func collectAllTools(maxPages int, fetch func(cursor string) (ToolPage, error)) 
 		seen[p.NextCursor] = true
 		cursor = p.NextCursor
 	}
-}
-
-func (c *stdioClient) CallTool(ctx context.Context, name string, arguments map[string]any) (ToolResult, error) {
-	res, err := c.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
-	if err != nil {
-		return ToolResult{}, classifyErr(err, apperror.KindProtocol, "call tool %q", name)
-	}
-	return toToolResult(res), nil
-}
-
-// Close gracefully closes the session (the SDK terminates the direct child)
-// and then sweeps the process group to reap any orphaned descendants. Close
-// may return a non-nil error (e.g. the child's "signal: killed" when it
-// ignores graceful shutdown and has to be force-terminated); callers should
-// not treat a non-nil return from Close as a command failure.
-func (c *stdioClient) Close() error {
-	err := c.session.Close()
-	process.KillGroup(c.cmd)
-	return err
 }
