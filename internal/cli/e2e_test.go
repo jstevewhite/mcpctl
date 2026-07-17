@@ -136,6 +136,41 @@ func TestE2EToolsCallNotFoundExit7(t *testing.T) {
 	}
 }
 
+func TestE2EToolsCallValidationFailsExit8(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	// echo requires "message"; omit it → local validation fails, exit 8, no call sent.
+	_, stderr, code := run(t, mcpctl, "tools", "call", "echo", "--json", "{}", "--stdio", "--", server)
+	if code != 8 {
+		t.Fatalf("exit = %d, want 8 (invalid arguments); stderr=%s", code, stderr)
+	}
+}
+
+func TestE2EToolsCallNoValidateBypasses(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	// "unchecked" declares a schema requiring "value", but (unlike every other
+	// tool on the test server) is registered via the SDK's low-level, raw
+	// AddTool, which performs no server-side schema validation of its own.
+	// This isolates the assertion to mcpctl's own client-side validation:
+	// echo's tools/call is auto-validated server-side by the SDK regardless
+	// of what mcpctl does (confirmed empirically), so it can't demonstrate a
+	// bypass — a schema-violating call to it fails the same way whether or
+	// not mcpctl validates locally.
+	//
+	// Without --no-validate: local validation catches the missing required
+	// "value" and exits 8 before the server is ever contacted.
+	_, stderr, code := run(t, mcpctl, "tools", "call", "unchecked", "--json", "{}", "--stdio", "--", server)
+	if code != 8 {
+		t.Fatalf("control: exit = %d, want 8 (invalid arguments); stderr=%s", code, stderr)
+	}
+	// With --no-validate: local validation is skipped, the schema-violating
+	// call is sent as-is, and the server's raw handler (which performs no
+	// validation) accepts it.
+	_, stderr, code = run(t, mcpctl, "--no-validate", "tools", "call", "unchecked", "--json", "{}", "--stdio", "--", server)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0 with --no-validate; stderr=%s", code, stderr)
+	}
+}
+
 // newCLIHTTPServer returns an httptest.Server running a minimal MCP server
 // with an `echo` tool over Streamable HTTP, for exercising the real mcpctl
 // binary's --url path end-to-end. wrap, if non-nil, wraps the handler (e.g.

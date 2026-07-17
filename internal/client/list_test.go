@@ -31,7 +31,7 @@ func TestListAllToolsFollowsPages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAllTools: %v", err)
 	}
-	// Test server registers 8 tools (echo, add, boom, slow, pad_1..pad_4).
+	// Test server registers 8 tools (echo, add, boom, slow, unchecked, pad_1..pad_3).
 	if len(all) != 8 {
 		t.Fatalf("ListAllTools = %d tools, want 8", len(all))
 	}

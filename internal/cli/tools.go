@@ -2,6 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 
 	"github.com/spf13/cobra"
 
@@ -183,8 +186,22 @@ func newToolsCallCmd(g *GlobalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, ok := findTool(tools, name); !ok {
+			tool, ok := findTool(tools, name)
+			if !ok {
 				return apperror.New(apperror.KindToolNotFound, "tool %q not found on this server", name)
+			}
+			if !g.NoValidate {
+				if verr := arguments.Validate(tool.InputSchema, toolArguments); verr != nil {
+					var unusable *arguments.SchemaUnusableError
+					if errors.As(verr, &unusable) {
+						slog.Debug("skipping local argument validation", "tool", name, "reason", unusable.Err)
+						if f == output.FormatHuman {
+							fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not validate arguments locally for %q; the server will validate\n", name)
+						}
+					} else {
+						return verr // KindInvalidArgs → exit 8, tools/call not sent
+					}
+				}
 			}
 
 			result, err := c.CallTool(ctx, name, toolArguments)

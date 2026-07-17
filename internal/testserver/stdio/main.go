@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -67,8 +68,25 @@ func main() {
 			}
 		})
 
+	// unchecked declares a schema requiring "value" but is registered via the
+	// SDK's low-level, raw AddTool (server.AddTool(*Tool, ToolHandler)), which
+	// performs no server-side schema validation of its own (unlike the
+	// generic mcp.AddTool[In,Out] used by the other tools above, which always
+	// validates arguments against the input schema before invoking the
+	// handler — see go-sdk mcp/server.go's applySchema). It exists solely so
+	// CLI e2e tests can prove that mcpctl's own client-side validation (and
+	// its --no-validate bypass) is what gates the call, independent of any
+	// enforcement the server might also perform.
+	server.AddTool(&mcp.Tool{
+		Name:        "unchecked",
+		Description: "accepts any arguments regardless of its declared schema (no server-side validation)",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false}`),
+	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil
+	})
+
 	// Padding tools so that with PageSize=2 and 8 tools the list spans 4 pages.
-	for i := 1; i <= 4; i++ {
+	for i := 1; i <= 3; i++ {
 		name := fmt.Sprintf("pad_%d", i)
 		mcp.AddTool(server, &mcp.Tool{Name: name, Description: "padding tool"},
 			func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, any, error) {
