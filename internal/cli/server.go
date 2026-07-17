@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -22,7 +24,7 @@ func newServerCmd(g *GlobalFlags) *cobra.Command {
 		Use:   "server",
 		Short: "Manage saved MCP server definitions",
 	}
-	cmd.AddCommand(newServerListCmd(g), newServerShowCmd(g))
+	cmd.AddCommand(newServerListCmd(g), newServerShowCmd(g), newServerAddCmd(g), newServerRemoveCmd(g))
 	return cmd
 }
 
@@ -116,6 +118,129 @@ func newServerShowCmd(g *GlobalFlags) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&name, "name", "", "server name")
 	return cmd
+}
+
+func newServerAddCmd(g *GlobalFlags) *cobra.Command {
+	var name string
+	var sf ServerFlags
+	cmd := &cobra.Command{
+		Use:   "add",
+		Short: "Add a server definition to the configuration (does not connect)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(name) == "" {
+				return apperror.Usage("server add requires a non-empty --name")
+			}
+			dash := cmd.ArgsLenAtDash()
+			var afterDash []string
+			hasDash := dash >= 0
+			if hasDash {
+				afterDash = args[dash:]
+			}
+			sc, err := serverConfigFromFlags(sf, afterDash, hasDash)
+			if err != nil {
+				return err
+			}
+
+			path, _, err := config.Resolve(g.Config)
+			if err != nil {
+				return apperror.Wrap(apperror.KindConfig, err, "resolve config path")
+			}
+			cfg, err := config.LoadResolved(g.Config)
+			if err != nil {
+				// server add creates config as needed: a not-yet-existing
+				// file (default path or an explicit --config) starts fresh
+				// rather than erroring, since Save is about to create it.
+				if errors.Is(err, fs.ErrNotExist) {
+					cfg = &config.Config{Version: 1, Servers: map[string]config.ServerConfig{}}
+				} else {
+					return err
+				}
+			}
+			if _, exists := cfg.Servers[name]; exists {
+				return apperror.Config("a server named %q already exists (remove it first)", name)
+			}
+			if cfg.Servers == nil {
+				cfg.Servers = map[string]config.ServerConfig{}
+			}
+			cfg.Servers[name] = sc
+			if err := cfg.Validate(); err != nil { // the new entry must be valid
+				return err
+			}
+			if err := config.Save(path, cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "added server %q\n", name)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "server name (required)")
+	addServerFlags(cmd, &sf) // reuse --stdio/--url/--header-env/--header-literal/--bearer-env
+	return cmd
+}
+
+func newServerRemoveCmd(g *GlobalFlags) *cobra.Command {
+	var name string
+	cmd := &cobra.Command{
+		Use:   "remove",
+		Short: "Remove a server definition from the configuration",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if name == "" {
+				return apperror.Usage("server remove requires --name")
+			}
+			path, _, err := config.Resolve(g.Config)
+			if err != nil {
+				return apperror.Wrap(apperror.KindConfig, err, "resolve config path")
+			}
+			cfg, err := config.LoadResolved(g.Config)
+			if err != nil {
+				return err
+			}
+			if _, ok := cfg.Servers[name]; !ok {
+				return apperror.Config("no server named %q in configuration", name)
+			}
+			delete(cfg.Servers, name)
+			if err := config.Save(path, cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "removed server %q\n", name)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "server name (required)")
+	return cmd
+}
+
+// serverConfigFromFlags builds a ServerConfig from the transport flags without
+// resolving env vars (only names are stored). Exactly one of --stdio/--url.
+func serverConfigFromFlags(sf ServerFlags, afterDash []string, hasDash bool) (config.ServerConfig, error) {
+	switch {
+	case sf.Stdio && sf.URL != "":
+		return config.ServerConfig{}, apperror.Usage("--stdio and --url are mutually exclusive")
+	case sf.Stdio:
+		if !hasDash || len(afterDash) == 0 {
+			return config.ServerConfig{}, apperror.Usage("--stdio requires a server command after `--`")
+		}
+		return config.ServerConfig{Transport: config.TransportStdio, Command: afterDash[0], Args: afterDash[1:]}, nil
+	case sf.URL != "":
+		as, err := authSpecFromFlags(sf.HeaderEnv, sf.HeaderLiteral, sf.BearerEnv)
+		if err != nil {
+			return config.ServerConfig{}, err
+		}
+		sc := config.ServerConfig{Transport: config.TransportHTTP, URL: sf.URL, Headers: as.Headers, HeaderEnv: as.HeaderEnv}
+		if len(sc.Headers) == 0 {
+			sc.Headers = nil
+		}
+		if len(sc.HeaderEnv) == 0 {
+			sc.HeaderEnv = nil
+		}
+		if as.BearerEnv != "" {
+			sc.BearerToken = &config.TokenSource{Env: as.BearerEnv}
+		}
+		return sc, nil
+	default:
+		return config.ServerConfig{}, apperror.Usage("server add requires --stdio (with `-- command`) or --url")
+	}
 }
 
 func endpointSummary(sc config.ServerConfig) string {

@@ -247,6 +247,37 @@ func TestE2EToolsListHTTPMissingBearerEnvExit4(t *testing.T) {
 	}
 }
 
+func TestE2EServerAddListRemove(t *testing.T) {
+	mcpctl, _ := buildBinaries(t)
+	cfg := filepath.Join(t.TempDir(), "config.toml")
+
+	// add
+	_, _, code := run(t, mcpctl, "--config", cfg, "server", "add", "--name", "local", "--stdio", "--", "echo", "hi")
+	if code != 0 {
+		t.Fatalf("server add exit = %d", code)
+	}
+	// list shows it
+	stdout, _, code := run(t, mcpctl, "--config", cfg, "server", "list")
+	if code != 0 || !strings.Contains(stdout, "local") {
+		t.Fatalf("server list exit=%d out=%s", code, stdout)
+	}
+	// duplicate add fails (exit 3)
+	_, _, code = run(t, mcpctl, "--config", cfg, "server", "add", "--name", "local", "--stdio", "--", "echo")
+	if code != 3 {
+		t.Fatalf("duplicate add exit = %d, want 3", code)
+	}
+	// remove
+	_, _, code = run(t, mcpctl, "--config", cfg, "server", "remove", "--name", "local")
+	if code != 0 {
+		t.Fatalf("server remove exit = %d", code)
+	}
+	// remove again fails (exit 3)
+	_, _, code = run(t, mcpctl, "--config", cfg, "server", "remove", "--name", "local")
+	if code != 3 {
+		t.Fatalf("remove-missing exit = %d, want 3", code)
+	}
+}
+
 func TestE2EToolsListHTTPViaConfigServer(t *testing.T) {
 	srv := newCLIHTTPServer(t, nil)
 	mcpctl, _ := buildBinaries(t)
