@@ -55,6 +55,25 @@ func TestE2EToolsListHuman(t *testing.T) {
 	}
 }
 
+func TestE2EToolsDescribe(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	stdout, _, code := run(t, mcpctl, "tools", "describe", "echo", "--stdio", "--", server)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "echo") {
+		t.Fatalf("describe output missing tool name:\n%s", stdout)
+	}
+}
+
+func TestE2EToolsDescribeNotFound(t *testing.T) {
+	mcpctl, server := buildBinaries(t)
+	_, _, code := run(t, mcpctl, "tools", "describe", "nope", "--stdio", "--", server)
+	if code != 7 {
+		t.Fatalf("exit = %d, want 7 (tool not found)", code)
+	}
+}
+
 func TestE2EToolsListJSONCleanStdout(t *testing.T) {
 	mcpctl, server := buildBinaries(t)
 	stdout, stderr, code := run(t, mcpctl, "--output", "json", "tools", "list", "--stdio", "--", server)

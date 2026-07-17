@@ -18,6 +18,7 @@ func newToolsCmd(g *GlobalFlags) *cobra.Command {
 		Short: "List, describe, and call tools on an MCP server",
 	}
 	cmd.AddCommand(newToolsListCmd(g))
+	cmd.AddCommand(newToolsDescribeCmd(g))
 	return cmd
 }
 
@@ -84,6 +85,44 @@ func newToolsListCmd(g *GlobalFlags) *cobra.Command {
 				serverName = "(ephemeral)"
 			}
 			return output.ToolList(cmd.OutOrStdout(), f, serverName, tools)
+		},
+	}
+	addServerFlags(cmd, &sf)
+	return cmd
+}
+
+func newToolsDescribeCmd(g *GlobalFlags) *cobra.Command {
+	var sf ServerFlags
+	cmd := &cobra.Command{
+		Use:   "describe TOOL",
+		Short: "Show a tool's description and schema",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			f, err := output.ParseFormat(g.Output)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := commandContext(cmd.Context(), g.Timeout)
+			defer cancel()
+			c, toolArgs, err := dial(ctx, cmd, g, sf, args)
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			if len(toolArgs) != 1 {
+				return apperror.Usage("describe requires exactly one TOOL name")
+			}
+			name := toolArgs[0]
+
+			tools, err := c.ListAllTools(ctx, defaultMaxPages)
+			if err != nil {
+				return err
+			}
+			for _, t := range tools {
+				if t.Name == name {
+					return output.ToolDescribe(cmd.OutOrStdout(), f, t)
+				}
+			}
+			return apperror.New(apperror.KindToolNotFound, "tool %q not found on this server", name)
 		},
 	}
 	addServerFlags(cmd, &sf)
