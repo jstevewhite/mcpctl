@@ -93,6 +93,7 @@ func NewRootCmd() (*cobra.Command, *GlobalFlags) {
 
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newToolsCmd(g))
+	root.AddCommand(newServerCmd(g))
 
 	return root, g
 }

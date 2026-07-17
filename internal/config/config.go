@@ -23,20 +23,20 @@ type DefaultsConfig struct {
 
 // ServerConfig is a single named server definition.
 type ServerConfig struct {
-	Transport   string            `toml:"transport"`
-	Command     string            `toml:"command,omitempty"`
-	Args        []string          `toml:"args,omitempty"`
-	CWD         string            `toml:"cwd,omitempty"`
-	Env         map[string]string `toml:"env,omitempty"`
-	URL         string            `toml:"url,omitempty"`
-	Headers     map[string]string `toml:"headers,omitempty"`
-	HeaderEnv   map[string]string `toml:"header_env,omitempty"`
-	BearerToken *TokenSource      `toml:"bearer_token,omitempty"`
+	Transport   string            `toml:"transport" json:"transport"`
+	Command     string            `toml:"command,omitempty" json:"command,omitempty"`
+	Args        []string          `toml:"args,omitempty" json:"args,omitempty"`
+	CWD         string            `toml:"cwd,omitempty" json:"cwd,omitempty"`
+	Env         map[string]string `toml:"env,omitempty" json:"env,omitempty"`
+	URL         string            `toml:"url,omitempty" json:"url,omitempty"`
+	Headers     map[string]string `toml:"headers,omitempty" json:"headers,omitempty"`
+	HeaderEnv   map[string]string `toml:"header_env,omitempty" json:"header_env,omitempty"`
+	BearerToken *TokenSource      `toml:"bearer_token,omitempty" json:"bearer_token,omitempty"`
 }
 
 // TokenSource names the environment variable holding a bearer token.
 type TokenSource struct {
-	Env string `toml:"env"`
+	Env string `toml:"env" json:"env"`
 }
 
 const (
