@@ -3,7 +3,6 @@
 package arguments
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -63,15 +62,13 @@ func readFileOrStdin(path string, stdin io.Reader) ([]byte, error) {
 
 // decodeObject requires the JSON to be a top-level object.
 func decodeObject(data []byte) (map[string]any, error) {
-	dec := json.NewDecoder(bytes.NewReader(data))
 	var v any
-	if err := dec.Decode(&v); err != nil {
+	if err := json.Unmarshal(data, &v); err != nil {
 		return nil, apperror.Wrap(apperror.KindInvalidArgs, err, "parse JSON arguments")
 	}
 	obj, ok := v.(map[string]any)
 	if !ok {
-		return nil, apperror.New(apperror.KindInvalidArgs,
-			"arguments must be a JSON object, got %T", v)
+		return nil, apperror.New(apperror.KindInvalidArgs, "arguments must be a JSON object, got %T", v)
 	}
 	return obj, nil
 }

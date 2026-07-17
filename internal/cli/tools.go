@@ -13,6 +13,15 @@ import (
 
 const defaultMaxPages = 1000
 
+func findTool(tools []client.ToolInfo, name string) (client.ToolInfo, bool) {
+	for _, t := range tools {
+		if t.Name == name {
+			return t, true
+		}
+	}
+	return client.ToolInfo{}, false
+}
+
 func newToolsCmd(g *GlobalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tools",
@@ -119,12 +128,11 @@ func newToolsDescribeCmd(g *GlobalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, t := range tools {
-				if t.Name == name {
-					return output.ToolDescribe(cmd.OutOrStdout(), f, t)
-				}
+			t, ok := findTool(tools, name)
+			if !ok {
+				return apperror.New(apperror.KindToolNotFound, "tool %q not found on this server", name)
 			}
-			return apperror.New(apperror.KindToolNotFound, "tool %q not found on this server", name)
+			return output.ToolDescribe(cmd.OutOrStdout(), f, t)
 		},
 	}
 	addServerFlags(cmd, &sf)
@@ -164,14 +172,7 @@ func newToolsCallCmd(g *GlobalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			found := false
-			for _, t := range tools {
-				if t.Name == name {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if _, ok := findTool(tools, name); !ok {
 				return apperror.New(apperror.KindToolNotFound, "tool %q not found on this server", name)
 			}
 

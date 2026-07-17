@@ -76,3 +76,9 @@ func TestParseNoneIsNil(t *testing.T) {
 		t.Fatalf("no args should be (nil, nil), got %v %v", got, err)
 	}
 }
+
+func TestParseJSONRejectsTrailingGarbage(t *testing.T) {
+	if _, err := Parse(`{"a":1}x`, "", nil, nil); err == nil {
+		t.Fatal("trailing garbage after a JSON object must be rejected")
+	}
+}
