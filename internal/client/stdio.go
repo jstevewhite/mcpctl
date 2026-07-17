@@ -69,12 +69,6 @@ func mergedEnv(overrides map[string]string) []string {
 
 func (c *stdioClient) ServerInfo() ServerInfo { return c.info }
 
-// The following method is a temporary placeholder that exists only so
-// *stdioClient satisfies the Client interface (defined in full in Task 1,
-// before any implementation existed). It is NOT part of Task 5's scope and
-// carries no real logic; Task 7 replaces CallTool with a real implementation
-// against session.CallTool.
-
 func (c *stdioClient) ListTools(ctx context.Context, cursor string) (ToolPage, error) {
 	res, err := c.session.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
 	if err != nil {
@@ -117,7 +111,11 @@ func (c *stdioClient) ListAllTools(ctx context.Context, maxPages int) ([]ToolInf
 }
 
 func (c *stdioClient) CallTool(ctx context.Context, name string, arguments map[string]any) (ToolResult, error) {
-	return ToolResult{}, apperror.Internal("CallTool: not yet implemented (Task 7)")
+	res, err := c.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
+	if err != nil {
+		return ToolResult{}, apperror.Wrap(apperror.KindProtocol, err, "call tool %q", name)
+	}
+	return toToolResult(res), nil
 }
 
 // Close gracefully closes the session (the SDK terminates the direct child)
